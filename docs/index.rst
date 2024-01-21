@@ -11,7 +11,7 @@ Welcome to Datawaza's documentation!
    :caption: Contents:
 
    explore
-
+   model
 
 
 Indices and tables
