@@ -1,7 +1,7 @@
 """
-workflow.py
+model.py
 
-This module provides tools and utilities to streamline data science workflows.
+This module provides tools and utilities to streamline modeling workflows.
 It contains functions to set up pipelines, iterate over models, and evaluate results.
 
 Functions:
@@ -27,7 +27,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 # Metadata
 __author__ = "Jim Beno"
 __email__ = "jim@jimbeno.net"
-__version__ = "0.0.1"
+__version__ = "0.1"
 __license__ = "GNU GPLv3"
 
 # Imports
@@ -54,6 +54,7 @@ from datetime import datetime
 from joblib import dump, load
 import pytz
 import os
+
 
 # Constants and Global Variables
 
