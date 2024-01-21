@@ -15,7 +15,7 @@ import sys
 # The directory relative to which the paths are considered is the one
 # containing the conf.py file, so you should adjust the '../' to point
 # to the root of your Python package.
-sys.path.insert(0, os.path.abspath('../datawaza'))
+sys.path.insert(0, os.path.abspath('..'))
 
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
