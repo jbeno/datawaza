@@ -10,6 +10,8 @@ Welcome to Datawaza's documentation!
    :maxdepth: 2
    :caption: Contents:
 
+   explore
+
 
 
 Indices and tables
