@@ -9,49 +9,77 @@ Datawaza documentation
 
 The functions in this library were originally created while pursuing a Professional Certificate in Machine Learning and Artificial Intelligence from U.C. Berkeley.
 
-::::{grid} 2
-:gutter: 1
+Modules
+...............
 
-:::{grid-item-card}
-A
-:::
-:::{grid-item-card}
-B
-:::
-::::
+.. grid:: 1 2 2 2
+    :gutter: 4
+    :padding: 2 2 0 0
+    :class-container: sd-text-center
 
-::::{grid} 2
-:gutter: 3 3 4 5
+    .. grid-item-card:: Explore
+        :class-card: intro-card
+        :shadow: md
 
-:::{grid-item-card}
-A
-:::
-:::{grid-item-card}
-B
-:::
-::::
+        Quickly explore and visualize your data.
 
-.. grid:: 2
-    :gutter: 1
+        +++
 
-    .. grid-item-card::
+        .. button-ref:: explore
+            :ref-type: ref
+            :click-parent:
+            :color: secondary
+            :expand:
 
-        A
+            explore.py
 
-    .. grid-item-card::
+    .. grid-item-card::  Clean
+        :class-card: intro-card
+        :shadow: md
 
-        B
+        Clean your data and engineer features.
 
-.. grid:: 2
-    :gutter: 3 3 4 5
+        +++
 
-    .. grid-item-card::
+        .. button-ref:: explore
+            :ref-type: ref
+            :click-parent:
+            :color: secondary
+            :expand:
 
-        A
+            clean.py
 
-    .. grid-item-card::
+    .. grid-item-card::  Model
+        :class-card: intro-card
+        :shadow: md
 
-        B
+        Create pipelines, iterate and evaluate models.
+
+        +++
+
+        .. button-ref:: model
+            :ref-type: ref
+            :click-parent:
+            :color: secondary
+            :expand:
+
+            model.py
+
+    .. grid-item-card::  Tools
+        :class-card: intro-card
+        :shadow: md
+
+        Additional utilities and helper functions.
+
+        +++
+
+        .. button-ref:: model
+            :ref-type: ref
+            :click-parent:
+            :color: secondary
+            :expand:
+
+            tools.py
 
 
 .. toctree::
