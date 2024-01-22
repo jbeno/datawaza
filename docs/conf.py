@@ -49,9 +49,9 @@ html_theme = "pydata_sphinx_theme"
 html_static_path = ['_static']
 html_theme_options = {
     "logo": {
-        "text": "Datawaza",
-        "image_light": "_static/datawaza_logo_light.svg",
-        "image_dark": "_static/datawaza_logo_grey.svg",
+        "alt-text": "Datawaza",
+        "image_light": "_static/datawaza_logo_name_white.svg",
+        "image_dark": "_static/datawaza_logo_name_grey.svg",
     }
 }
 # html_css_files = [
