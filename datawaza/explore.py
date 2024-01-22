@@ -42,32 +42,60 @@ def get_unique(df, n=20, sort='count', show_list=True, count=True, percent=True,
     Obtains unique values of all variables below a threshold number "n", and can display counts or percents.
     Additionally, it can analyze variables over 'n' as continuous data.
 
-    Parameters:
-
-    - df: DataFrame. The dataframe that contains the variables you want to analyze.
-    - n: int, optional (default is 20). The maximum number of unique values to consider. This helps to avoid
-        iterating over continuous data.
-    - sort: str, optional (default='count'). Determines the sorting of unique values:
+    Parameters
+    ----------
+    df : DataFrame
+        The dataframe that contains the variables you want to analyze.
+    n : int, optional
+        The maximum number of unique values to consider. This helps to avoid
+        iterating over continuous data. Default is 20.
+    sort : str, optional
+        Determines the sorting of unique values:
         - 'name' - sorts alphabetically/numerically,
         - 'count' - sorts by count of unique values (descending),
         - 'percent' - sorts by percentage of each unique value (descending).
-    - show_list: boolean, optional (default=True). If True, shows the list of unique values.
-    - count: boolean, optional (default=False). If True, shows counts of each unique value.
-    - percent: boolean, optional (default=False). If True, shows the percentage of each unique value.
-    - plot: boolean, optional (default=False). If True, shows a basic chart for each variable.
-    - cont: boolean, optional (default=False). If True, analyzes variables with unique values greater than 'n'
-        as continuous data.
-    - strip: boolean, optional (default=False). If True, removes single quotes from the variable names.
-    - dropna: boolean, optional (default=False). If True, excludes NaN values from unique value lists.
-    - fig_size: tuple, optional (default=(6, 4)). Size of figure if plotting is enabled.
-    - rotation: integer, optional (default=45). Rotation angle of X axis ticks if plotting is enabled.
+        Default is 'count'.
+    show_list : bool, optional
+        If True, shows the list of unique values. Default is True.
+    count : bool, optional
+        If True, shows counts of each unique value. Default is False.
+    percent : bool, optional
+        If True, shows the percentage of each unique value. Default is False.
+    plot : bool, optional
+        If True, shows a basic chart for each variable. Default is False.
+    cont : bool, optional
+        If True, analyzes variables with unique values greater than 'n'
+        as continuous data. Default is False.
+    strip : bool, optional
+        If True, removes single quotes from the variable names. Default is False.
+    dropna : bool, optional
+        If True, excludes NaN values from unique value lists. Default is False.
+    fig_size : tuple, optional
+        Size of figure if plotting is enabled. Default is (6, 4).
+    rotation : int, optional
+        Rotation angle of X axis ticks if plotting is enabled. Default is 45.
 
-    Returns:
-    None. The function prints the analysis directly.
+    Returns
+    -------
+    None
+        The function prints the analysis directly.
 
-    Example:
-    dw.get_unique(df, n=15, sort='count', plot=True, cont=True)
+    Examples
+    --------
+    Create a DataFrame with categorical and continuous data, then pass it to `get_unique`:
 
+    >>> df = pd.DataFrame({
+    ...     'Categorical': ['cat', 'dog', 'cat'],
+    ...     'Continuous': [1.5, 2.5, 3.7]
+    ... })
+    >>> get_unique(df, n=2)
+    <BLANKLINE>
+    CATEGORICAL: Variables with unique values equal to or below: 2
+    <BLANKLINE>
+    Categorical has 2 unique values:
+    <BLANKLINE>
+        cat       2   66.67%
+        dog       1   33.33%
     """
     # Calculate # of unique values for each variable in the dataframe
     var_list = df.nunique(axis=0, dropna=dropna)
@@ -115,13 +143,13 @@ def get_unique(df, n=20, sort='count', show_list=True, count=True, percent=True,
                     y_pad_size = len(y_pad_max_str) + 3
                     y_pad = y_str + " " * (y_pad_size - len(y_str))
                     if count and percent:
-                        print("\t" + str(w_pad) + str(y_pad) + str(z) + "%")
+                        print("    " + str(w_pad) + str(y_pad) + str(z) + "%")
                     elif count:
-                        print("\t" + str(w_pad) + str(y))
+                        print("    " + str(w_pad) + str(y))
                     elif percent:
-                        print("\t" + str(w_pad) + str(z) + "%")
+                        print("    " + str(w_pad) + str(z) + "%")
                     else:
-                        print("\t" + str(w))
+                        print("    " + str(w))
 
             # Plot countplot if plot=True
             if plot:
