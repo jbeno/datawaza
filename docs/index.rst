@@ -11,14 +11,23 @@ The functions in this library were originally created while pursuing a Professio
 
 .. _cards-clickable:
 
-Cards Clickable
+Modules
 ...............
 
-.. card:: Clickable Card (internal)
-    :link: cards-clickable
-    :link-type: ref
+.. grid:: 2
 
-    The entire card can be clicked to navigate to the ``cards`` reference target.
+    .. grid-item-card::  Explore
+        :link: explore.rst
+        :link-type: doc
+
+        Quickly explore and visualize your data.
+
+    .. grid-item-card::  Model
+        :link: model.rst
+        :link-type: doc
+
+        Create pipelines, iterate models, evaluate performance.
+
 
 
 .. toctree::
@@ -30,8 +39,8 @@ Cards Clickable
    model
 
 
-Indices and tables
-==================
+Reference
+...............
 
 * :ref:`genindex`
 * :ref:`modindex`
