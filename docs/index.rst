@@ -9,8 +9,6 @@ Datawaza is a collection of tools for data exploration, visualization, data clea
 
 The functions in this library were originally created while pursuing a Professional Certificate in Machine Learning and Artificial Intelligence from U.C. Berkeley.
 
-.. _cards-clickable:
-
 Modules
 ...............
 
