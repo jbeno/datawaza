@@ -54,6 +54,6 @@ html_theme_options = {
         "image_dark": "_static/datawaza_logo_grey.svg",
     }
 }
-html_css_files = [
-    'css/custom.css',
-]
+# html_css_files = [
+#     'css/custom.css',
+# ]

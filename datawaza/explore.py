@@ -1,26 +1,11 @@
 """
 explore.py
 
-This module provides tools and utilities to streamline exploratory data analysis.
+This module provides tools to streamline exploratory data analysis.
 It contains functions to find unique values, plot distributions, and more.
 
 Functions:
     - get_unique: Display the unique values in a dataset with counts, percents, plots.
-
-Copyright (C) 2023 Jim Beno
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with this program. If not, see <https://www.gnu.org/licenses/>.
 """
 
 # Metadata
