@@ -5,9 +5,8 @@
 
 Datawaza documentation
 ====================================
-`datawaza` is a collection of tools for data exploration, visualization, data cleaning, pipeline creation, model iteration, and evaluation. It builds upon core libraries like pandas, matplotlib, seaborn, and scikit-learn.
+Datawaza is a collection of tools for data exploration, visualization, data cleaning, pipeline creation, model iteration, and evaluation. It builds upon core libraries like pandas, matplotlib, seaborn, and scikit-learn.
 
-The functions in this library were originally created while pursuing a Professional Certificate in Machine Learning and Artificial Intelligence from U.C. Berkeley.
 
 Modules
 ...............
@@ -18,69 +17,41 @@ Modules
     :class-container: sd-text-center
 
     .. grid-item-card:: Explore
+        :img-top: _static/explore-blue.svg
+        :class-img-top: intro-card-icon
         :class-card: intro-card
         :shadow: md
+        :link: explore
+        :link-type: doc
 
         Quickly explore and visualize your data.
 
-        +++
-
-        .. button-ref:: explore
-            :ref-type: ref
-            :click-parent:
-            :color: secondary
-            :expand:
-
-            explore.py
-
     .. grid-item-card::  Clean
+        :img-top: _static/clean-blue.svg
         :class-card: intro-card
         :shadow: md
+        :link: explore
+        :link-type: doc
 
         Clean your data and engineer features.
 
-        +++
-
-        .. button-ref:: explore
-            :ref-type: ref
-            :click-parent:
-            :color: secondary
-            :expand:
-
-            clean.py
-
     .. grid-item-card::  Model
+        :img-top: _static/model-blue.svg
         :class-card: intro-card
         :shadow: md
+        :link: model
+        :link-type: doc
 
         Create pipelines, iterate and evaluate models.
 
-        +++
-
-        .. button-ref:: model
-            :ref-type: ref
-            :click-parent:
-            :color: secondary
-            :expand:
-
-            model.py
-
     .. grid-item-card::  Tools
+        :img-top: _static/tools-blue.svg
         :class-card: intro-card
         :shadow: md
+        :link: model
+        :link-type: doc
 
         Additional utilities and helper functions.
-
-        +++
-
-        .. button-ref:: model
-            :ref-type: ref
-            :click-parent:
-            :color: secondary
-            :expand:
-
-            tools.py
-
 
 .. toctree::
    :hidden:

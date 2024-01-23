@@ -1,11 +1,6 @@
 """
-explore.py
-
 This module provides tools to streamline exploratory data analysis.
 It contains functions to find unique values, plot distributions, and more.
-
-Functions:
-    - get_unique: Display the unique values in a dataset with counts, percents, plots.
 """
 
 # Metadata

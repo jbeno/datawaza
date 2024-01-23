@@ -1,12 +1,6 @@
 """
-model.py
-
 This module provides tools to streamline data modeling workflows.
 It contains functions to set up pipelines, iterate over models, and evaluate results.
-
-Functions:
-    - create_pipeline: Creates a data preprocessing and modeling pipeline.
-    - iterate_model: Sets up a pipeline, fits models, and evaluates their performance.
 """
 
 # Metadata

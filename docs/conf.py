@@ -33,7 +33,8 @@ extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.viewcode',
     'sphinx.ext.napoleon',
-    'sphinx_design'
+    'sphinx_design',
+    'myst_parser'
 ]
 
 templates_path = ['_templates']
@@ -46,15 +47,49 @@ exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 
 #html_theme = 'alabaster'
 #html_theme = 'sphinx_rtd_theme'
-html_theme = "pydata_sphinx_theme"
+html_theme = 'pydata_sphinx_theme'
 html_static_path = ['_static']
 html_theme_options = {
-    "logo": {
-        "alt-text": "Datawaza",
-        "image_light": "_static/datawaza_logo_name_white.svg",
-        "image_dark": "_static/datawaza_logo_name_grey.svg",
-    }
+    'logo': {
+        'alt-text': 'Datawaza',
+        'image_light': '_static/datawaza_logo_name_white.svg',
+        'image_dark': '_static/datawaza_logo_name_grey.svg'
+    },
+    "icon_links": [
+        {
+            # Label for this link
+            "name": "GitHub",
+            # URL where the link will redirect
+            "url": "https://github.com/jbeno/datawaza",  # required
+            # Icon class (if "type": "fontawesome"), or path to local image (if "type": "local")
+            "icon": "fab fa-github-square",
+            # The type of image to be used (see below for details)
+            "type": "fontawesome",
+        }
+    ],
+    "favicons": [
+        {
+            "rel": "icon",
+            "sizes": "16x16",
+            "href": "datawaza_logo_favicon_16x16.png",
+        },
+        {
+            "rel": "icon",
+            "sizes": "32x32",
+            "href": "datawaza_logo_favicon_32x32.png",
+        },
+        {
+            "rel": "apple-touch-icon",
+            "sizes": "180x180",
+            "href": "datawaza_logo_favicon_180x180.png"
+        }
+    ]
 }
-# html_css_files = [
-#     'css/custom.css',
-# ]
+html_css_files = [
+    'css/custom.css',
+]
+html_sidebars = {
+    'index': [],
+    'explore': [],
+    'model': []
+}

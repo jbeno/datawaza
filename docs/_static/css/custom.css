@@ -1,7 +1,171 @@
-html[data-theme="light"] {
-    --pst-color-secondary: blue;
+/* custom.css */
+:root {
+    --sd-color-secondary: #01A2FF;
+    --sd-color-secondary-highlight: #028BDA;
+    --sd-color-secondary-text: #ffffff;
+    --pst-color-secondary: #01A2FF;
+    --pst-color-secondary-highlight: #028BDA;
+
+    a {
+        color: #01A2FF; /* Replace with your preferred link text color */
+    }
+
+    a:hover {
+        color: #028BDA; /* Replace with your preferred link hover color */
+    }
 }
 
+
+/* anything related to the light theme */
+html[data-theme="light"] {
+
+    .intro-card .sd-card-img-top {
+        margin: 10px;
+        height: 52px;
+        background: none !important;
+        fill: #01A2FF;
+    }
+
+    /* whatever you want to change */
+    --sd-color-secondary: #01A2FF;
+    --sd-color-secondary-highlight: #028BDA;
+    --sd-color-secondary-text: #ffffff;
+    --pst-color-primary: #028BDA;
+    --pst-color-primary-highlight: #028BDA;
+    --pst-color-secondary-highlight: #028BDA;
+    --pst-color-secondary: #01A2FF;
+    --pst-color-accent: #01A2FF;
+    --pst-color-inline-code: #01A2FF;
+    --sd-color-card-border-hover: #01A2FF;
+
+    .sig-name {
+        color: #01A2FF; /* Change the text color */
+    }
+
+    li.nav-item.current {
+        color: #028BDA; /* Change the text color */
+    }
+
+    a.nav-link.nav-internal {
+        color: #01A2FF; /* Change the text color */
+    }
+
+    a.nav-link.nav-internal:hover {
+        color: #028BDA; /* Hover color for the text */
+    }
+
+    a.left-prev .prev-next-title {
+        color: #01A2FF; /* Change the text color */
+    }
+
+    a.left-prev:hover .prev-next-title {
+        color: #028BDA; /* Hover color for the text */
+    }
+
+
+    a.right-next .prev-next-title {
+        color: #01A2FF; /* Change the text color */
+    }
+
+    a.right-next:hover .prev-next-title {
+        color: #028BDA; /* Hover color for the text */
+    }
+
+    a.left-prev svg {
+        color: #01A2FF;
+        fill: #01A2FF; /* Change the SVG icon color */
+    }
+
+    a.left-prev:hover svg {
+        color: #028BDA;
+        fill: #028BDA; /* Hover color for the SVG icon */
+    }
+
+    a.right-next svg {
+        color: #01A2FF;
+        fill: #01A2FF; /* Change the SVG icon color */
+    }
+
+    a.right-next:hover svg {
+        color: #028BDA;
+        fill: #028BDA; /* Hover color for the SVG icon */
+    }
+
+}
+
+/* anything related to the dark theme */
 html[data-theme="dark"] {
-    --pst-color-secondary: blue;
+
+    .intro-card .sd-card-img-top {
+        margin: 10px;
+        height: 52px;
+        background: none !important;
+        fill: #01A2FF;
+    }
+
+    /* whatever you want to change */
+    --sd-color-secondary: #01A2FF;
+    --sd-color-secondary-highlight: #028BDA;
+    --sd-color-secondary-text: #ffffff;
+    --pst-color-primary: #028BDA;
+    --pst-color-primary-highlight: #028BDA;
+    --pst-color-secondary-highlight: #028BDA;
+    --pst-color-secondary: #01A2FF;
+    --pst-color-accent: #01A2FF;
+    --pst-color-inline-code: #01A2FF;
+    --sd-color-card-border-hover: #01A2FF;
+
+    .sig-name {
+        color: #01A2FF; /* Change the text color */
+    }
+
+    li.nav-item.current {
+        color: #028BDA; /* Change the text color */
+    }
+
+    a.nav-link.nav-internal {
+        color: #01A2FF; /* Change the text color */
+    }
+
+    a.nav-link.nav-internal:hover {
+        color: #028BDA; /* Hover color for the text */
+    }
+
+    a.left-prev .prev-next-title {
+        color: #01A2FF; /* Change the text color */
+    }
+
+    a.left-prev:hover .prev-next-title {
+        color: #028BDA; /* Hover color for the text */
+    }
+
+
+    a.right-next .prev-next-title {
+        color: #01A2FF; /* Change the text color */
+    }
+
+    a.right-next:hover .prev-next-title {
+        color: #028BDA; /* Hover color for the text */
+    }
+
+    a.left-prev svg {
+        color: #01A2FF;
+        fill: #01A2FF; /* Change the SVG icon color */
+    }
+
+    a.left-prev:hover svg {
+        color: #028BDA;
+        fill: #028BDA; /* Hover color for the SVG icon */
+    }
+
+    a.right-next svg {
+        color: #01A2FF;
+        fill: #01A2FF; /* Change the SVG icon color */
+    }
+
+    a.right-next:hover svg {
+        color: #028BDA;
+        fill: #028BDA; /* Hover color for the SVG icon */
+    }
+
 }
