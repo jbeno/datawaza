@@ -12,9 +12,6 @@
 #
 import os
 import sys
-# The directory relative to which the paths are considered is the one
-# containing the conf.py file, so you should adjust the '../' to point
-# to the root of your Python package.
 sys.path.insert(0, os.path.abspath('..'))
 
 # -- Project information -----------------------------------------------------
@@ -34,21 +31,19 @@ extensions = [
     'sphinx.ext.viewcode',
     'sphinx.ext.napoleon',
     'sphinx_design',
+    'sphinx_favicon',
     'myst_parser'
 ]
 
 templates_path = ['_templates']
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 
-
-
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
-#html_theme = 'alabaster'
-#html_theme = 'sphinx_rtd_theme'
 html_theme = 'pydata_sphinx_theme'
 html_static_path = ['_static']
+
 html_theme_options = {
     'logo': {
         'alt-text': 'Datawaza',
@@ -67,29 +62,33 @@ html_theme_options = {
             "type": "fontawesome",
         }
     ],
-    "favicons": [
-        {
-            "rel": "icon",
-            "sizes": "16x16",
-            "href": "datawaza_logo_favicon_16x16.png",
-        },
-        {
-            "rel": "icon",
-            "sizes": "32x32",
-            "href": "datawaza_logo_favicon_32x32.png",
-        },
-        {
-            "rel": "apple-touch-icon",
-            "sizes": "180x180",
-            "href": "datawaza_logo_favicon_180x180.png"
-        }
-    ]
+    "navigation_with_keys": False,
 }
+
+html_favicons = [
+    {
+        "rel": "icon",
+        "sizes": "16x16",
+        "href": "datawaza_logo_favicon_16x16.png",
+    },
+    {
+        "rel": "icon",
+        "sizes": "32x32",
+        "href": "datawaza_logo_favicon_32x32.png",
+    },
+    {
+        "rel": "apple-touch-icon",
+        "sizes": "180x180",
+        "href": "datawaza_logo_favicon_180x180.png"
+    }
+]
+
 html_css_files = [
     'css/custom.css',
 ]
+
 html_sidebars = {
     'index': [],
     'explore': [],
-    'model': []
+    'clean': []
 }

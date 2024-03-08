@@ -30,7 +30,7 @@ Modules
         :img-top: _static/clean-blue.svg
         :class-card: intro-card
         :shadow: md
-        :link: explore
+        :link: clean
         :link-type: doc
 
         Clean your data and engineer features.
@@ -39,8 +39,6 @@ Modules
         :img-top: _static/model-blue.svg
         :class-card: intro-card
         :shadow: md
-        :link: model
-        :link-type: doc
 
         Create pipelines, iterate and evaluate models.
 
@@ -48,8 +46,6 @@ Modules
         :img-top: _static/tools-blue.svg
         :class-card: intro-card
         :shadow: md
-        :link: model
-        :link-type: doc
 
         Additional utilities and helper functions.
 
@@ -59,7 +55,7 @@ Modules
    :caption: Modules:
 
    explore
-   model
+   clean
 
 
 Reference

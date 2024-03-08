@@ -3,8 +3,17 @@
     --sd-color-secondary: #01A2FF;
     --sd-color-secondary-highlight: #028BDA;
     --sd-color-secondary-text: #ffffff;
-    --pst-color-secondary: #01A2FF;
+    --pst-color-primary: #028BDA;
+    --pst-color-primary-highlight: #028BDA;
     --pst-color-secondary-highlight: #028BDA;
+    --pst-color-secondary: #01A2FF;
+    --pst-color-accent: #01A2FF;
+    --pst-color-inline-code: #01A2FF;
+    --pst-color-inline-code-links: #01A2FF;
+    --sd-color-card-border-hover: #01A2FF;
+    --pst-color-success: #01A2FF;
+    --pst-color-link: #01A2FF;
+    --pst-color-link-hover: #028BDA;
 
     a {
         color: #01A2FF; /* Replace with your preferred link text color */
@@ -13,6 +22,27 @@
     a:hover {
         color: #028BDA; /* Replace with your preferred link hover color */
     }
+
+     a.reference.internal {
+         text-decoration: none !important; /* Forcefully removes the underline by default */
+         text-decoration-thickness: 2px; /* Adjust the thickness as desired */
+     }
+
+     a.reference.internal:hover {
+         text-decoration: underline !important; /* Forcefully adds the underline on hover */
+         text-decoration-thickness: 2px !important; /* Adjust the thickness as desired */
+     }
+
+    code.xref.py.py-func.docutils.literal.notranslate span.pre {
+        color: #01A2FF; /* Change the text color */
+        text-decoration: none !important; /* Forcefully removes the underline by default */
+    }
+
+    code.xref.py.py-func.docutils.literal.notranslate span.pre:hover {
+        color: #028BDA; /* Change the text color for hover state */
+        text-decoration: underline;
+        text-decoration-thickness: 2px !important; /* Set the underline thickness */
+   }
 }
 
 
@@ -36,7 +66,32 @@ html[data-theme="light"] {
     --pst-color-secondary: #01A2FF;
     --pst-color-accent: #01A2FF;
     --pst-color-inline-code: #01A2FF;
+    --pst-color-inline-code-links: #01A2FF;
     --sd-color-card-border-hover: #01A2FF;
+    --pst-color-success: #01A2FF;
+    --pst-color-link: #01A2FF;
+    --pst-color-link-hover: #028BDA;
+
+     a.reference.internal {
+         text-decoration: none !important; /* Forcefully removes the underline by default */
+         text-decoration-thickness: 2px; /* Adjust the thickness as desired */
+     }
+
+     a.reference.internal:hover {
+         text-decoration: underline !important; /* Forcefully adds the underline on hover */
+         text-decoration-thickness: 2px !important; /* Adjust the thickness as desired */
+     }
+
+    code.xref.py.py-func.docutils.literal.notranslate span.pre {
+        color: #01A2FF; /* Change the text color */
+        text-decoration: none !important; /* Forcefully removes the underline by default */
+    }
+
+    code.xref.py.py-func.docutils.literal.notranslate span.pre:hover {
+        color: #028BDA; /* Change the text color for hover state */
+        text-decoration: underline;
+        text-decoration-thickness: 2px !important; /* Set the underline thickness */
+   }
 
     .sig-name {
         color: #01A2FF; /* Change the text color */
@@ -113,7 +168,32 @@ html[data-theme="dark"] {
     --pst-color-secondary: #01A2FF;
     --pst-color-accent: #01A2FF;
     --pst-color-inline-code: #01A2FF;
+    --pst-color-inline-code-links: #01A2FF;
     --sd-color-card-border-hover: #01A2FF;
+    --pst-color-success: #01A2FF;
+    --pst-color-link: #01A2FF;
+    --pst-color-link-hover: #028BDA;
+
+     a.reference.internal {
+         text-decoration: none !important; /* Forcefully removes the underline by default */
+         text-decoration-thickness: 2px; /* Adjust the thickness as desired */
+     }
+
+     a.reference.internal:hover {
+         text-decoration: underline !important; /* Forcefully adds the underline on hover */
+         text-decoration-thickness: 2px !important; /* Adjust the thickness as desired */
+     }
+
+    code.xref.py.py-func.docutils.literal.notranslate span.pre {
+        color: #01A2FF; /* Change the text color */
+        text-decoration: none !important; /* Forcefully removes the underline by default */
+    }
+
+    code.xref.py.py-func.docutils.literal.notranslate span.pre:hover {
+        color: #028BDA; /* Change the text color for hover state */
+        text-decoration: underline;
+        text-decoration-thickness: 2px !important; /* Set the underline thickness */
+   }
 
     .sig-name {
         color: #01A2FF; /* Change the text color */

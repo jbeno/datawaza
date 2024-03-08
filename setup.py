@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="datawaza",
-    version="0.0.1",
+    version="0.1.0",
     packages=find_packages(),
     install_requires=[],
     author="Jim Beno",
@@ -13,7 +13,7 @@ setup(
     url="https://github.com/jbeno/datawaza",
     keywords=['data science', 'visualization', 'machine learning', 'data analysis'],
     classifiers=[
-        "Development Status :: 1 - Planning",
+        "Development Status :: 3 - Alpha",
         "Intended Audience :: Science/Research",
         "Intended Audience :: Developers",
         "Programming Language :: Python :: 3",
