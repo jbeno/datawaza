@@ -4,12 +4,11 @@
    contain the root `toctree` directive.
 
 Datawaza documentation
-====================================
-Datawaza is a collection of tools for data exploration, visualization, data cleaning, pipeline creation, model iteration, and evaluation. It builds upon core libraries like pandas, matplotlib, seaborn, and scikit-learn.
-
+======================
+Datawaza is a collection of tools for data exploration, visualization, data cleaning, pipeline creation, model iteration, and evaluation. It builds upon core libraries like `pandas <https://pandas.pydata.org/>`_, `matplotlib <https://matplotlib.org/>`_, `seaborn <https://seaborn.pydata.org/>`_, and `scikit-learn <https://scikit-learn.org/stable/>`_.
 
 Modules
-...............
+.......
 
 .. grid:: 1 2 2 2
     :gutter: 4
@@ -39,6 +38,8 @@ Modules
         :img-top: _static/model-blue.svg
         :class-card: intro-card
         :shadow: md
+        :link: model
+        :link-type: doc
 
         Create pipelines, iterate and evaluate models.
 
@@ -46,20 +47,35 @@ Modules
         :img-top: _static/tools-blue.svg
         :class-card: intro-card
         :shadow: md
+        :link: tools
+        :link-type: doc
 
         Additional utilities and helper functions.
+
+User Guide
+................
+
+:doc:`userguide` is a Jupyter notebook that walks through how to use the Datawaza functions. It's probably the best place to start, and then you can reference the function specs organized by module above.
+
+Source Code
+...........
+
+You can find the `datawaza repo <https://github.com/jbeno/datawaza/>`_ on Github. Please submit any issues there. It's distributed under the GNU General Public License. Contributions are welcome!
+
 
 .. toctree::
    :hidden:
    :maxdepth: 2
-   :caption: Modules:
+   :caption: Contents:
 
    explore
    clean
-
+   model
+   tools
+   userguide
 
 Reference
-...............
+.........
 
 * :ref:`genindex`
 * :ref:`modindex`

@@ -12,6 +12,7 @@ sphinxcontrib-qthelp==1.0.7
 sphinxcontrib-serializinghtml==1.1.10
 myst-parser==2.0.0
 sphinx-favicon==1.0.1
+nbsphinx==0.9.3
 
 # Library dependencies
 matplotlib~=3.8.2

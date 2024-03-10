@@ -13,12 +13,13 @@
 # GNU General Public License for more details:
 # https://github.com/jbeno/datawaza/blob/main/LICENSE
 """
-This module provides tools to streamline exploratory data analysis.
-It contains functions to find unique values, detect outliers, extract correlations,
-and plot distributions.
+This module provides tools to clean data in preparation for modeling.
+It contains functions to convert data types, convert unites of measurement,
+convert time values, and reduce multicollinearity.
 
 Functions:
     - :func:`~datawaza.clean.convert_data_values` - Convert mixed data values (ex: GB, MB, KB) to a common unit of measurement.
+    - :func:`~datawaza.clean.convert_dtypes` - Convert specified columns in a DataFrame to the desired data type.
     - :func:`~datawaza.clean.convert_time_values` - Convert time values in specified columns of a DataFrame to a target format.
     - :func:`~datawaza.clean.reduce_multicollinearity` - Reduce multicollinearity in a DataFrame by removing highly correlated features.
 """
@@ -38,6 +39,7 @@ from pandas import DataFrame
 from typing import Optional, Union, Tuple, List, Dict
 from scipy.stats import iqr
 import re
+
 
 # Functions
 def convert_data_values(
@@ -107,7 +109,7 @@ def convert_data_values(
     ... })
     >>> cols = ['A', 'B', 'C']
 
-    Example 1: Convert values in specified columns to MB and assign to a new df:
+    Example 1: Convert values in specified columns to GB and assign to a new df:
 
     >>> df_converted = convert_data_values(df, cols, target_unit='GB')
     >>> df_converted
@@ -116,7 +118,7 @@ def convert_data_values(
     1     0.000477  0.000488  2.384186e-04
     2  2048.000000  0.000191  1.048576e+06
 
-    Example 2: Convert data values to KB in place, modifying the existing df,
+    Example 2: Convert data values to MB in place, modifying the existing df,
     and show a summary of the changes:
 
     >>> convert_data_values(df, cols, target_unit='MB', inplace=True,
@@ -182,6 +184,8 @@ def convert_data_values(
         # Function to convert a data value
         def convert_value(value):
             if pd.isna(value):  # Handle NaNs
+                if show_results:
+                    print(f"Original: NaN -> Converted: NaN")
                 return np.nan
 
             # RegEx handles both with spaces or without, ex: '10 GB' and '10GB'
@@ -217,6 +221,129 @@ def convert_data_values(
         return df
 
 
+def convert_dtypes(
+        df: pd.DataFrame,
+        cols: List[str],
+        target_dtype: Union[type, str],
+        show_results: bool = False,
+        inplace: bool = True
+) -> Optional[pd.DataFrame]:
+    """
+    Convert specified columns in a DataFrame to the desired data type.
+
+    This function converts the data type of the specified columns in the input
+    DataFrame to the desired target data type. It supports both base Python data
+    types (e.g., int, float, str) and Pandas-specific data types (e.g., 'int64',
+    'float64', 'object', 'bool', 'datetime64', 'timedelta[ns]', 'category'). If
+    `inplace` is set to True (default), the conversion is done in place, modifying
+    the original DataFrame. If `inplace` is False, a new DataFrame with the
+    converted columns is returned. If `show_results` is set to True, it will print
+    the results of each successful conversion and any error messages for columns
+    that could not be converted.
+
+    Use this function when you need to convert the data types of specific columns
+    in a DataFrame to a consistent target data type, especially when dealing with
+    multiple columns at once and identifying columns that require further data
+    cleaning.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        The DataFrame containing the columns to be converted.
+    cols : List[str]
+        List of column names in `df` to be converted.
+    target_dtype : type or str
+        The desired data type for the conversion. Can be a base Python data type
+        (e.g., int, float, str) or a string representation of a Pandas data type
+        (e.g., 'int64', 'float64', 'object', 'bool', 'datetime64', 'timedelta[ns]',
+        'category').
+    show_results : bool, optional
+        If True, will print the results of each successful conversion and any error
+        messages for columns that could not be converted. Default is False.
+    inplace : bool, optional
+        If True (default), the conversion is done in place, modifying the original
+        DataFrame. If False, a new DataFrame with the converted columns is
+        returned.
+
+    Returns
+    -------
+    pd.DataFrame or None
+        If `inplace` is False, returns a new DataFrame with the specified columns
+        converted to the target data type. If `inplace` is True, returns None as
+        the original DataFrame is modified in place.
+
+    Examples
+    --------
+    Prepare data for examples:
+
+    >>> df = pd.DataFrame({
+    ...     'A': [1, 2, 3],
+    ...     'B': ['0', '23.4 MB', '3.71 GB'],
+    ...     'C': ['4.5', '3.7', '12.15'],
+    ...     'D': [True, False, True],
+    ...     'E': ['Yes', 'No', ''],
+    ...     'F': ['Low', 'Medium', 'High']
+    ... })
+    >>> num_columns = ['A', 'B', 'C']
+    >>> cat_columns = ['D', 'E', 'F']
+    >>> df.dtypes
+    A     int64
+    B    object
+    C    object
+    D      bool
+    E    object
+    F    object
+    dtype: object
+
+    Example 1: Convert columns 'A', 'B', and 'C' to float and show the results:
+
+    >>> convert_dtypes(df, num_columns, 'float')
+    Error converting column: B (Current dtype: object). Error message: could not convert string to float: '23.4 MB'
+    >>> df.dtypes
+    A    float64
+    B     object
+    C    float64
+    D       bool
+    E     object
+    F     object
+    dtype: object
+
+    Example 2: Convert columns 'D', 'E', and 'F' to category, show the results, and
+    return a new DataFrame:
+
+    >>> new_df = convert_dtypes(df, cat_columns, 'category', inplace=False,
+    ... show_results=True)
+    Successfully converted column 'D' from bool to category.
+    Successfully converted column 'E' from object to category.
+    Successfully converted column 'F' from object to category.
+    >>> new_df.dtypes
+    A     float64
+    B      object
+    C     float64
+    D    category
+    E    category
+    F    category
+    dtype: object
+    """
+    if not inplace:
+        df = df.copy()
+
+    for col in cols:
+        try:
+            current_dtype = df[col].dtype
+            if isinstance(target_dtype, str):
+                df[col] = df[col].astype(target_dtype)
+            else:
+                df[col] = df[col].astype(target_dtype)
+            if show_results:
+                print(f"Successfully converted column '{col}' from {current_dtype} to {df[col].dtype}.")
+        except (ValueError, TypeError) as e:
+            print(f"Error converting column: {col} (Current dtype: {current_dtype}). Error message: {e}")
+
+    if not inplace:
+        return df
+
+
 def convert_time_values(
         df: pd.DataFrame,
         cols: List[str],
@@ -230,9 +357,10 @@ def convert_time_values(
     Convert time values in specified columns of a DataFrame to a target format.
 
     This function converts time values in the specified columns of the input
-    DataFrame to the desired target format. If `inplace` is set to True, the
-    conversion is done in place, modifying the original DataFrame. If `inplace`
-    is False (default), a new DataFrame with the converted values is returned.
+    DataFrame to the desired target format, and changes their dtype to a Pandas
+    datetime object. If `inplace` is set to True, the conversion is done in place,
+    modifying the original DataFrame. If `inplace` is False (default), a new
+    DataFrame with the converted values is returned.
 
     The function can handle time values in various formats, including:
     1. Excel serial format (e.g., '45161.23458')
@@ -346,6 +474,8 @@ def convert_time_values(
         def convert_value(value):
             # If value is NaN, return NaN
             if pd.isna(value):
+                if show_results:
+                    print(f"Original: NaN -> Converted: NaN")
                 return np.nan
 
             # If zero_to_nan is True and value matches zero patterns, return NaN
@@ -391,6 +521,10 @@ def convert_time_values(
 
         # Apply the conversion function to values in each column
         df[col] = df[col].apply(convert_value)
+
+    # Convert the modified columns to pandas datetime format
+    for col in cols:
+        df[col] = pd.to_datetime(df[col], format=target_format, errors='coerce')
 
     # Return a dataframe only if not modifying in place
     if inplace:

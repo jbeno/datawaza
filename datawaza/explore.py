@@ -14,8 +14,8 @@
 # https://github.com/jbeno/datawaza/blob/main/LICENSE
 """
 This module provides tools to streamline exploratory data analysis.
-It contains functions to find unique values, detect outliers, extract correlations,
-and plot distributions.
+It contains functions to find unique values, plot distributions, detect outliers,
+extract the top correlations, and plot correlations.
 
 Functions:
     - :func:`~datawaza.explore.get_corr` - Display the top `n` positive and negative correlations with a target variable in a DataFrame.
@@ -39,6 +39,7 @@ import seaborn as sns
 from pandas import DataFrame
 from typing import Optional, Union, Tuple, List, Dict
 from scipy.stats import iqr
+
 
 # Functions
 def get_outliers(

@@ -32,7 +32,8 @@ extensions = [
     'sphinx.ext.napoleon',
     'sphinx_design',
     'sphinx_favicon',
-    'myst_parser'
+    'myst_parser',
+    'nbsphinx'
 ]
 
 templates_path = ['_templates']
@@ -90,5 +91,8 @@ html_css_files = [
 html_sidebars = {
     'index': [],
     'explore': [],
-    'clean': []
+    'clean': [],
+    'model': [],
+    'tools': [],
+    'userguide': []
 }

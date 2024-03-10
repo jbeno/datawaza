@@ -7,8 +7,11 @@ from .explore import (get_outliers,
                       plot_corr)
 
 from .clean import (convert_data_values,
+                    convert_dtypes,
                     convert_time_values,
                     reduce_multicollinearity)
+
+from .tools import (check_for_duplicates)
 
 # from .model import (iterate_model,
 #                     create_pipeline,
