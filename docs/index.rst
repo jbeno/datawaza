@@ -60,8 +60,12 @@ User Guide
 Source Code
 ...........
 
-You can find the `datawaza repo <https://github.com/jbeno/datawaza/>`_ on Github. Please submit any issues there. It's distributed under the GNU General Public License. Contributions are welcome!
+You can find the `Datawaza repo <https://github.com/jbeno/datawaza/>`_ on Github. Please submit any issues there. It's distributed under the GNU General Public License. Contributions are welcome!
 
+What is Waza?
+.............
+
+Waza (技) means "technique" in Japanese. In martial arts like Aikido, it is paired with words like "suwari-waza" (sitting techniques) or "kaeshi-waza" (reversal techniques). So we've paired it with "data" to represent Data Science techniques: データ技 "data-waza".
 
 .. toctree::
    :hidden:
