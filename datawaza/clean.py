@@ -15,13 +15,15 @@
 """
 This module provides tools to clean data in preparation for modeling.
 It contains functions to convert data types, convert unites of measurement,
-convert time values, and reduce multicollinearity.
+convert time values, reduce multicollinearity, and split out the outliers from
+a dataset.
 
 Functions:
     - :func:`~datawaza.clean.convert_data_values` - Convert mixed data values (ex: GB, MB, KB) to a common unit of measurement.
     - :func:`~datawaza.clean.convert_dtypes` - Convert specified columns in a DataFrame to the desired data type.
     - :func:`~datawaza.clean.convert_time_values` - Convert time values in specified columns of a DataFrame to a target format.
     - :func:`~datawaza.clean.reduce_multicollinearity` - Reduce multicollinearity in a DataFrame by removing highly correlated features.
+    - :func:`~datawaza.clean.split_outliers` - Split a DataFrame into two based on the presence of outliers.
 """
 
 # Metadata
@@ -33,11 +35,8 @@ __license__ = "GNU GPLv3"
 # Imports
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
 from pandas import DataFrame
 from typing import Optional, Union, Tuple, List, Dict
-from scipy.stats import iqr
 import re
 
 
@@ -760,3 +759,99 @@ def reduce_multicollinearity(
     to_drop = original_features - kept_features
     reduced_df = df.drop(columns=to_drop)
     return reduced_df
+
+
+def split_outliers(
+        df: pd.DataFrame,
+        columns: Optional[List[str]] = None,
+        iqr_multiplier: float = 1.5
+) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    """
+    Split a DataFrame into two based on the presence of outliers.
+
+    This function identifies outliers in the specified columns of the
+    input DataFrame using the Interquartile Range (IQR) method. It then
+    splits the DataFrame into two: one containing rows without outliers
+    and another containing only the rows with outliers.
+
+    Use this function when you need to separate outliers from the main
+    data for further analysis or processing.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        The input DataFrame containing the data to be split.
+    columns : List[str], optional
+        List of column names to consider for outlier detection. If None,
+        all columns in the DataFrame will be considered. Default is None.
+    iqr_multiplier : float, optional
+        The multiplier for the IQR range to determine outliers. Default
+        is 1.5.
+
+    Returns
+    -------
+    Tuple[pd.DataFrame, pd.DataFrame]
+        A tuple containing two DataFrames: The first DataFrame (df_no_outliers)
+        contains rows without outliers. The second DataFrame (df_outliers)
+        contains only the rows with outliers.
+
+    Examples
+    --------
+    Prepare the data for the examples:
+
+    >>> df = pd.DataFrame({
+    ...     'A': [1, 2, 3, 4, 5, 100],
+    ...     'B': [10, 20, 30, 40, 50, 600],
+    ...     'C': [-30, 4, 3, 2, 1, 3]
+    ... })
+
+    Example 1: Split outliers considering all columns:
+
+    >>> df_no_outliers, df_outliers = split_outliers(df)
+    >>> df_no_outliers
+       A   B  C
+    1  2  20  4
+    2  3  30  3
+    3  4  40  2
+    4  5  50  1
+    >>> df_outliers
+         A    B   C
+    0    1   10 -30
+    5  100  600   3
+
+    Example 2: Split outliers considering specific columns:
+
+    >>> df_no_outliers, df_outliers = split_outliers(df, columns=['A', 'B'])
+    >>> df_no_outliers
+       A   B   C
+    0  1  10 -30
+    1  2  20   4
+    2  3  30   3
+    3  4  40   2
+    4  5  50   1
+    >>> df_outliers
+         A    B  C
+    5  100  600  3
+    """
+    # If columns parameter is not provided, use all columns in the DataFrame
+    if columns is None:
+        columns = df.columns
+
+    # Create an initial mask with all False values (meaning no outliers)
+    outlier_mask = pd.Series(False, index=df.index)
+
+    # For each specified column, update the outlier mask to mark outliers
+    for col in columns:
+        Q1 = df[col].quantile(0.25)
+        Q3 = df[col].quantile(0.75)
+        IQR = Q3 - Q1
+
+        # Update mask for outliers in the current column
+        outlier_mask |= (df[col] < (Q1 - iqr_multiplier * IQR)) | \
+                        (df[col] > (Q3 + iqr_multiplier * IQR))
+
+    # Use the mask to split the data
+    df_no_outliers = df[~outlier_mask]
+    df_outliers = df[outlier_mask]
+
+    return df_no_outliers, df_outliers

@@ -52,8 +52,15 @@ Modules
 
         Additional utilities and helper functions.
 
+Installation
+............
+
+The `latest releases <https://pypi.org/project/datawaza/>`_ can be found on PyPi. Install Datawaza with pip::
+
+   pip install datawaza
+
 User Guide
-................
+..........
 
 :doc:`userguide` is a Jupyter notebook that walks through how to use the Datawaza functions. It's probably the best place to start, and then you can reference the function specs organized by module above.
 
@@ -66,6 +73,11 @@ What is Waza?
 .............
 
 Waza (技) means "technique" in Japanese. In martial arts like Aikido, it is paired with words like "suwari-waza" (sitting techniques) or "kaeshi-waza" (reversal techniques). So we've paired it with "data" to represent Data Science techniques: データ技 "data-waza".
+
+Origin Story
+.............
+
+Most of these functions were created while I was pusuring a `Professional Certificate in Machine Learning & Artificial Intelligence <https://em-executive.berkeley.edu/professional-certificate-machine-learning-artificial-intelligence>` from U.C. Berkeley. With every assignment, I tried to simplify repetitive tasks and streamline my workflow. They served me well, so I'm publishing this library in the hope that it may help others.
 
 .. toctree::
    :hidden:

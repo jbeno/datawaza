@@ -15,14 +15,17 @@
 """
 This module provides tools to streamline exploratory data analysis.
 It contains functions to find unique values, plot distributions, detect outliers,
-extract the top correlations, and plot correlations.
+extract the top correlations, plot correlations, plot 3D charts, and plot data
+on a map of California.
 
 Functions:
     - :func:`~datawaza.explore.get_corr` - Display the top `n` positive and negative correlations with a target variable in a DataFrame.
     - :func:`~datawaza.explore.get_outliers` - Detects and summarizes outliers for the specified numeric columns in a DataFrame, based on an IQR ratio.
     - :func:`~datawaza.explore.get_unique` - Print the unique values of all variables below a threshold `n`, including counts and percentages.
+    - :func:`~datawaza.explore.plot_3d` - Create a 3D scatter plot using Plotly Express.
     - :func:`~datawaza.explore.plot_charts` - Display multiple bar plots and histograms for categorical and/or continuous variables in a DataFrame, with an option to dimension by the specified `hue`.
     - :func:`~datawaza.explore.plot_corr` - Plot the top `n` correlations of one variable against others in a DataFrame.
+    - :func:`~datawaza.explore.plot_map_ca` - Plot longitude and latitude data on a geographic map of California.
 """
 
 # Metadata
@@ -35,13 +38,163 @@ __license__ = "GNU GPLv3"
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from matplotlib.ticker import FuncFormatter
 import seaborn as sns
 from pandas import DataFrame
 from typing import Optional, Union, Tuple, List, Dict
 from scipy.stats import iqr
+import plotly.express as px
+from .tools import thousands
+# Required for geographic mapping
+import cartopy.crs as ccrs
+import cartopy.feature as cfeature
+import geopandas as gpd
+import matplotlib.patheffects as pe
 
 
 # Functions
+def get_corr(
+        df: DataFrame,
+        n: int = 5,
+        var: Optional[str] = None,
+        show_results: bool = True,
+        return_arrays: bool = False
+) -> Union[None, Tuple[np.ndarray, np.ndarray]]:
+    """
+    Display the top `n` positive and negative correlations with a target variable
+    in a DataFrame.
+
+    This function computes the correlation matrix for the provided DataFrame, and
+    identifies the top `n` positively and negatively correlated pairs of variables.
+    By default, it prints a summary of these correlations. Optionally, it can
+    return arrays of the variable names involved in these top correlations,
+    avoiding duplicates.
+
+    Use this to quickly identify the strongest correlations with a target variable.
+    You can also use this to reduce a DataFrame with a large number of features
+    down to just the top `n` correlated features. Extract the names of the top
+    correlated features into 2 separate arrays (one for positive, one for
+    negative). Concatenate those variable lists and append the target variable. Use
+    this concatenated array to create a new DataFrame.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        The DataFrame to analyze for correlations.
+    n : int, optional
+        The number of top positive and negative correlations to list. Default is 5.
+    var : str, optional
+        A specific variable of interest. If provided, the function will only
+        consider correlations involving this variable. Default is None.
+    show_results : bool, optional
+        Flag to indicate if the results should be printed. Default is True.
+    return_arrays : bool, optional
+        Flag to indicate if the function should return arrays of variable names
+        involved in the top correlations. Default is False.
+
+    Returns
+    -------
+    tuple, optional
+        If `return_arrays` is set to True, the function returns a tuple containing
+        two arrays: (1) `positive_variables`: An array of variable names involved
+        in the top n positive correlations. (2) `negative_variables`: An array of
+        variable names involved in the top n negative correlations. If
+        `return_arrays` is False, the function returns nothing.
+
+    Examples
+    --------
+    Prepare the data for the examples:
+
+    >>> np.random.seed(0)  # For reproducibility
+    >>> n_samples = 100
+    >>> # Create variables
+    >>> temp = np.linspace(10, 30, n_samples) + np.random.normal(0, 2, n_samples)
+    >>> sales = temp * 3 + np.random.normal(0, 10, n_samples)
+    >>> fuel = 100 - temp * 2 + np.random.normal(0, 5, n_samples)
+    >>> humidity = 70 - temp * 1.5 + np.random.normal(0, 4, n_samples)
+    >>> ac_units_sold = temp * 2 + np.random.normal(0, 15, n_samples)
+    >>> # Create DataFrame
+    >>> df = pd.DataFrame({'Temp': temp, 'Sales': sales, 'Fuel': fuel,
+    ...                    'Humidity': humidity, 'AC_Units_Sold': ac_units_sold})
+
+    Example 1: Print the top 'n' correlations, both positive and negative:
+
+    >>> get_corr(df, n=2, var='Temp')
+    Top 2 positive correlations:
+          Variable 1 Variable 2  Correlation
+    0          Sales       Temp         0.85
+    1  AC_Units_Sold       Temp         0.62
+    <BLANKLINE>
+    Top 2 negative correlations:
+      Variable 1 Variable 2  Correlation
+    0       Fuel       Temp        -0.92
+    1   Humidity       Temp        -0.92
+
+    Example 2: Create arrays with the top correlated feature names:
+
+    >>> (top_pos, top_neg) = get_corr(df, n=1, var='Temp', show_results=False,
+    ...     return_arrays=True)
+    >>> print(top_pos)
+    ['Sales']
+    >>> print(top_neg)
+    ['Fuel']
+
+    Example 3: Create a dataframe of top correlated features from those arrays:
+
+    >>> top_features = np.concatenate((top_pos, top_neg, ['Temp']))
+    >>> df_top_features = df[top_features]
+    >>> print(df_top_features[:2])
+           Sales       Fuel       Temp
+    0  59.415821  71.097881  13.528105
+    1  19.529413  76.798435  11.002335
+    """
+    pd.set_option('display.expand_frame_repr', False)
+
+    corr = round(df.corr(numeric_only=True), 2)
+
+    # Unstack correlation matrix into a DataFrame
+    corr_df = corr.unstack().reset_index()
+    corr_df.columns = ['Variable 1', 'Variable 2', 'Correlation']
+
+    # If a variable is specified, filter to correlations involving that variable
+    if var is not None:
+        corr_df = corr_df[(corr_df['Variable 1'] == var) | (corr_df['Variable 2'] == var)]
+
+    # Remove self-correlations and duplicates
+    corr_df = corr_df[corr_df['Variable 1'] != corr_df['Variable 2']]
+    corr_df[['Variable 1', 'Variable 2']] = np.sort(corr_df[['Variable 1', 'Variable 2']], axis=1)
+    corr_df = corr_df.drop_duplicates(subset=['Variable 1', 'Variable 2'])
+
+    # Sort by absolute correlation value from highest to lowest
+    corr_df['AbsCorrelation'] = corr_df['Correlation'].abs()
+    corr_df = corr_df.sort_values(by='AbsCorrelation', ascending=False)
+
+    # Drop the absolute value column
+    corr_df = corr_df.drop(columns='AbsCorrelation').reset_index(drop=True)
+
+    # Get the first n positive and negative correlations
+    positive_corr = corr_df[corr_df['Correlation'] > 0].head(n).reset_index(drop=True)
+    negative_corr = corr_df[corr_df['Correlation'] < 0].head(n).reset_index(drop=True)
+
+    # Print the results
+    if show_results:
+        print("Top", n, "positive correlations:")
+        print(positive_corr)
+        print("\nTop", n, "negative correlations:")
+        print(negative_corr)
+
+    # Return the arrays
+    if return_arrays:
+        # Remove target variable from the arrays
+        positive_variables = positive_corr[['Variable 1', 'Variable 2']].values.flatten()
+        positive_variables = positive_variables[positive_variables != var]
+
+        negative_variables = negative_corr[['Variable 1', 'Variable 2']].values.flatten()
+        negative_variables = negative_variables[negative_variables != var]
+
+        return positive_variables, negative_variables
+
+
 def get_outliers(
         df: pd.DataFrame,
         num_columns: List[str],
@@ -185,148 +338,6 @@ def get_outliers(
         plt.show()
 
     return outlier_df
-
-
-def get_corr(
-        df: DataFrame,
-        n: int = 5,
-        var: Optional[str] = None,
-        show_results: bool = True,
-        return_arrays: bool = False
-) -> Union[None, Tuple[np.ndarray, np.ndarray]]:
-    """
-    Display the top `n` positive and negative correlations with a target variable
-    in a DataFrame.
-
-    This function computes the correlation matrix for the provided DataFrame, and
-    identifies the top `n` positively and negatively correlated pairs of variables.
-    By default, it prints a summary of these correlations. Optionally, it can
-    return arrays of the variable names involved in these top correlations,
-    avoiding duplicates.
-
-    Use this to quickly identify the strongest correlations with a target variable.
-    You can also use this to reduce a DataFrame with a large number of features
-    down to just the top `n` correlated features. Extract the names of the top
-    correlated features into 2 separate arrays (one for positive, one for
-    negative). Concatenate those variable lists and append the target variable. Use
-    this concatenated array to create a new DataFrame.
-
-    Parameters
-    ----------
-    df : pandas.DataFrame
-        The DataFrame to analyze for correlations.
-    n : int, optional
-        The number of top positive and negative correlations to list. Default is 5.
-    var : str, optional
-        A specific variable of interest. If provided, the function will only
-        consider correlations involving this variable. Default is None.
-    show_results : bool, optional
-        Flag to indicate if the results should be printed. Default is True.
-    return_arrays : bool, optional
-        Flag to indicate if the function should return arrays of variable names
-        involved in the top correlations. Default is False.
-
-    Returns
-    -------
-    tuple, optional
-        If `return_arrays` is set to True, the function returns a tuple containing
-        two arrays: (1) `positive_variables`: An array of variable names involved
-        in the top n positive correlations. (2) `negative_variables`: An array of
-        variable names involved in the top n negative correlations. If
-        `return_arrays` is False, the function returns nothing.
-
-    Examples
-    --------
-    Prepare the data for the examples:
-
-    >>> np.random.seed(0)  # For reproducibility
-    >>> n_samples = 100
-    >>> # Create variables
-    >>> temp = np.linspace(10, 30, n_samples) + np.random.normal(0, 2, n_samples)
-    >>> sales = temp * 3 + np.random.normal(0, 10, n_samples)
-    >>> fuel = 100 - temp * 2 + np.random.normal(0, 5, n_samples)
-    >>> humidity = 70 - temp * 1.5 + np.random.normal(0, 4, n_samples)
-    >>> ac_units_sold = temp * 2 + np.random.normal(0, 15, n_samples)
-    >>> # Create DataFrame
-    >>> df = pd.DataFrame({'Temp': temp, 'Sales': sales, 'Fuel': fuel,
-    ...                    'Humidity': humidity, 'AC_Units_Sold': ac_units_sold})
-
-    Example 1: Print the top 'n' correlations, both positive and negative:
-
-    >>> get_corr(df, n=2, var='Temp')
-    Top 2 positive correlations:
-          Variable 1 Variable 2  Correlation
-    0          Sales       Temp         0.85
-    1  AC_Units_Sold       Temp         0.62
-    <BLANKLINE>
-    Top 2 negative correlations:
-      Variable 1 Variable 2  Correlation
-    0       Fuel       Temp        -0.92
-    1   Humidity       Temp        -0.92
-
-    Example 2: Create arrays with the top correlated feature names:
-
-    >>> (top_pos, top_neg) = get_corr(df, n=1, var='Temp', show_results=False,
-    ...     return_arrays=True)
-    >>> print(top_pos)
-    ['Sales']
-    >>> print(top_neg)
-    ['Fuel']
-
-    Example 3: Create a dataframe of top correlated features from those arrays:
-
-    >>> top_features = np.concatenate((top_pos, top_neg, ['Temp']))
-    >>> df_top_features = df[top_features]
-    >>> print(df_top_features[:2])
-           Sales       Fuel       Temp
-    0  59.415821  71.097881  13.528105
-    1  19.529413  76.798435  11.002335
-    """
-    pd.set_option('display.expand_frame_repr', False)
-
-    corr = round(df.corr(numeric_only=True), 2)
-
-    # Unstack correlation matrix into a DataFrame
-    corr_df = corr.unstack().reset_index()
-    corr_df.columns = ['Variable 1', 'Variable 2', 'Correlation']
-
-    # If a variable is specified, filter to correlations involving that variable
-    if var is not None:
-        corr_df = corr_df[(corr_df['Variable 1'] == var) | (corr_df['Variable 2'] == var)]
-
-    # Remove self-correlations and duplicates
-    corr_df = corr_df[corr_df['Variable 1'] != corr_df['Variable 2']]
-    corr_df[['Variable 1', 'Variable 2']] = np.sort(corr_df[['Variable 1', 'Variable 2']], axis=1)
-    corr_df = corr_df.drop_duplicates(subset=['Variable 1', 'Variable 2'])
-
-    # Sort by absolute correlation value from highest to lowest
-    corr_df['AbsCorrelation'] = corr_df['Correlation'].abs()
-    corr_df = corr_df.sort_values(by='AbsCorrelation', ascending=False)
-
-    # Drop the absolute value column
-    corr_df = corr_df.drop(columns='AbsCorrelation').reset_index(drop=True)
-
-    # Get the first n positive and negative correlations
-    positive_corr = corr_df[corr_df['Correlation'] > 0].head(n).reset_index(drop=True)
-    negative_corr = corr_df[corr_df['Correlation'] < 0].head(n).reset_index(drop=True)
-
-    # Print the results
-    if show_results:
-        print("Top", n, "positive correlations:")
-        print(positive_corr)
-        print("\nTop", n, "negative correlations:")
-        print(negative_corr)
-
-    # Return the arrays
-    if return_arrays:
-        # Remove target variable from the arrays
-        positive_variables = positive_corr[['Variable 1', 'Variable 2']].values.flatten()
-        positive_variables = positive_variables[positive_variables != var]
-
-        negative_variables = negative_corr[['Variable 1', 'Variable 2']].values.flatten()
-        negative_variables = negative_variables[negative_variables != var]
-
-        return positive_variables, negative_variables
 
 
 def get_unique(
@@ -547,6 +558,126 @@ def get_unique(
                     plt.show()
 
 
+def plot_3d(
+        df: pd.DataFrame,
+        x: str,
+        y: str,
+        z: str,
+        color: Optional[str] = None,
+        color_map: Optional[List[str]] = 'tab10',
+        scale: str = 'linear'
+) -> None:
+    """
+    Create a 3D scatter plot using Plotly Express.
+
+    This function generates an interactive 3D scatter plot using the
+    Plotly Express library. It allows for customization of the `x`, `y`, and `z`
+    axes, as well as color coding of the points based on the column specified
+    for `color` (similar to the `hue` parameter in Seaborn). A `color_map` can be
+    passed to control the colors used on the plot. The plot can also be displayed
+    with either a linear or logarithmic scale.
+
+    Use this function to visualize and explore relationships between three
+    variables in a dataset, with the option to color code the points based
+    on a fourth variable. It is a great way to visualize the top 3 principal
+    components, dimensioned by the target variable.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        The input DataFrame containing the data to be plotted.
+    x : str
+        The column name to be used for the x-axis.
+    y : str
+        The column name to be used for the y-axis.
+    z : str
+        The column name to be used for the z-axis.
+    color : str, optional
+        The column name to be used for color coding the points. Default is
+        None.
+    color_map : List[str], optional
+        The color map to be used. If None, the seaborn default color
+        palette will be used. Default is None.
+    scale : str, optional
+        The scale type for the axes. Use 'log' for logarithmic scale.
+        Default is 'linear'.
+
+    Returns
+    -------
+    None
+        The function displays the interactive 3D scatter plot using Plotly
+        Express.
+
+    Examples
+    --------
+    Prepare the data for the examples:
+
+    >>> df = pd.DataFrame({
+    ...     'X': [1, 2, 3, 4, 5],
+    ...     'Y': [2, 4, 6, 8, 10],
+    ...     'Z': [3, 6, 9, 12, 15],
+    ...     'Category': ['A', 'B', 'A', 'B', 'A']
+    ... })
+
+    Example 1: Create a basic 3D scatter plot:
+
+    >>> plot_3d(df, x='X', y='Y', z='Z')
+
+    Example 2: Create a 3D scatter plot with color coding and log scale:
+
+    >>> plot_3d(df, x='X', y='Y', z='Z', color='Category', scale='log')
+    """
+    # Create the 3D scatter plot using Plotly Express
+    fig = px.scatter_3d(df,
+                        x=x,
+                        y=y,
+                        z=z,
+                        color=color,
+                        color_discrete_map=color_map,
+                        height=600,
+                        width=1000)
+
+    # Set the plot title
+    title_text = f"{x}, {y}, {z} by {color}"
+
+    # Adjust the 3D perspective and plot styling
+    fig.update_layout(title={'text': title_text, 'y': 0.9, 'x': 0.5,
+                             'xanchor': 'center', 'yanchor': 'top'},
+                      showlegend=True,
+                      scene_camera=dict(up=dict(x=0, y=0, z=1),
+                                        center=dict(x=0, y=0, z=-0.1),
+                                        eye=dict(x=1.5, y=-1.4, z=0.5)),
+                      margin=dict(l=0, r=0, b=0, t=0),
+                      scene=dict(xaxis=dict(backgroundcolor='white',
+                                            color='black',
+                                            gridcolor='#f0f0f0',
+                                            title=x,
+                                            title_font=dict(size=10),
+                                            tickfont=dict(size=10),
+                                            type=scale),
+                                 yaxis=dict(backgroundcolor='white',
+                                            color='black',
+                                            gridcolor='#f0f0f0',
+                                            title=y,
+                                            title_font=dict(size=10),
+                                            tickfont=dict(size=10),
+                                            type=scale),
+                                 zaxis=dict(backgroundcolor='lightgrey',
+                                            color='black',
+                                            gridcolor='#f0f0f0',
+                                            title=z,
+                                            title_font=dict(size=10),
+                                            tickfont=dict(size=10),
+                                            type=scale)))
+
+    # Update the marker style
+    fig.update_traces(marker=dict(size=3, opacity=1,
+                                  line=dict(color='black', width=0.1)))
+
+    # Display the plot
+    fig.show()
+
+
 def plot_charts(df: pd.DataFrame,
                 plot_type: str = 'both',
                 n: int = 10,
@@ -573,7 +704,7 @@ def plot_charts(df: pd.DataFrame,
     This function allows you to plot a large number of distributions with one line
     of code. You choose which type of plots to create by setting `plot_type` to
     `cat`, `cont`, or `both`. Categorical variables are plotted with
-    `sns.countplot` ordered by descending value counts for a clean appearance.
+    `sns.barplot` ordered by descending value counts for a clean appearance.
     Continuous variables are plotted with `sns.histplot`. There are two approaches
     to identifying categorical vs. continuous variables: (a) you can specify
     `cat_cols` and `cont_cols` as lists of the respective column names, or (b) you
@@ -698,14 +829,38 @@ def plot_charts(df: pd.DataFrame,
     >>> plot_charts(df, plot_type='cont', cont_cols=num_cols, hue='Target',
     ...             multiple='stack', kde=True, log_scale=True)
     """
+    # Function to sample the data
+    def get_sample(df, sample_size):
+        # If sample_size is less than 1, treat it as a fraction
+        if sample_size < 1:
+            df_sample = df.sample(frac=sample_size, random_state=random_state)
+        # If sample_size is greater than or equalt to 1, treat it as an exact sample count
+        elif sample_size >= 1:
+            # Convert floats to int
+            sample_size = int(sample_size)
+            df_sample = df.sample(n=sample_size, random_state=random_state)
+        else:
+            print(f'WARNING: Could not sample. get_sample() called, but sample_size = {sample_size}.')
+            df_sample = df
+        # Return a sampled dataframe
+        return df_sample
+
+    # Function to plot categorical variables as bar plots
     def plot_categorical(df, cols, ncols, fig_width, subplot_height, rotation, sample_size, hue, color_discrete_map, normalize):
-        if sample_size:
-            df = df.sample(sample_size, random_state=random_state)
+        # If sample_size is defined, draw a sample
+        df = get_sample(df, sample_size) if sample_size else df
+
+        # Warn when we're asked to normalize but don't have hue
+        if normalize and not hue:
+            print(f"WARNING: Can't normalize without hue. normalize = {normalize}, hue = {hue}.")
+
+        # Calculate the number of charts to plot
         nplots = len(cols)
         nrows = nplots//ncols
         if nplots % ncols:
             nrows += 1
 
+        # Create the figure with subplots
         fig, axs = plt.subplots(nrows=nrows, ncols=ncols, figsize=(fig_width, nrows*subplot_height), constrained_layout=True)
         if isinstance(axs, np.ndarray):
             if len(axs.shape) > 1:
@@ -713,20 +868,56 @@ def plot_charts(df: pd.DataFrame,
         else:
             axs = [axs]
 
+        # Iterate through each categorical column to plot
         for i, col in enumerate(cols):
-            if normalize:
-                # Normalize the counts
+            if normalize and hue:
+                # Normalize the counts, but only if hue is defined
                 df_copy = df.copy()
                 data = df_copy.groupby(col)[hue].value_counts(normalize=True).rename('proportion').reset_index()
                 sns.barplot(data=data, x=col, y='proportion', hue=hue, palette=color_discrete_map, ax=axs[i])
                 axs[i].set_ylabel('Proportion', fontsize=12)
             else:
-                order = df[col].value_counts().index
-                if hue == None:
-                    sns.countplot(data=df, x=col, hue=col, legend=False, palette=color_discrete_map, ax=axs[i], order=order)
+                # Sort the DataFrame by the count of occurrences of each category
+                if hue:
+                    # Handle the case where the column is the same as the hue variable
+                    if col == hue:
+                        sorted_df = df[[hue]].groupby(hue).value_counts().reset_index()
+                    else:
+                        sorted_df = df[[col, hue]].groupby(hue).value_counts().reset_index()
                 else:
-                    sns.countplot(data=df, x=col, hue=hue, palette=color_discrete_map, ax=axs[i], order=order)
+                    sorted_df = df[col].value_counts().reset_index()
+                    sorted_df.columns = [col, 'count']
+
+                # Convert the column to string type to prevent numerical sorting
+                sorted_df[col] = sorted_df[col].astype(str)
+
+                # Generate a color palette
+                if hue:
+                    # Generate a color palette to match the number of hue values
+                    num_hue_values = len(sorted_df[hue].value_counts())
+                    if num_hue_values > 10:
+                        colors = sns.color_palette("husl", num_hue_values)
+                    elif color_discrete_map:
+                        colors = color_discrete_map
+                    else:
+                        colors = sns.color_palette("tab10", num_hue_values)
+                else:
+                    # Generate a color palette to match the number of categories
+                    num_categories = sorted_df.shape[0]
+                    if num_categories > 10:
+                        colors = sns.color_palette("husl", num_categories)
+                    elif color_discrete_map:
+                        colors = color_discrete_map
+                    else:
+                        colors = sns.color_palette("tab10", num_categories)
+
+                # Plot the appropriate chart
+                if hue == None:
+                    sns.barplot(data=sorted_df, x=col, y='count', hue=col, legend=False, palette=colors, ax=axs[i])
+                else:
+                    sns.barplot(data=sorted_df, x=col, y='count', hue=hue, palette=colors, ax=axs[i])
                 axs[i].set_ylabel('Count', fontsize=12)
+                axs[i].yaxis.set_major_formatter(FuncFormatter(thousands))
             axs[i].set_xlabel(' ', fontsize=12)
             axs[i].set_title(col, fontsize=16, pad=10)
             axs[i].tick_params(axis='x', rotation=rotation)
@@ -735,15 +926,19 @@ def plot_charts(df: pd.DataFrame,
         for empty_subplot in axs[nplots:]:
             fig.delaxes(empty_subplot)
 
+    # Function to plot continuous variables as histograms
     def plot_continuous(df, cols, ncols, fig_width, subplot_height, sample_size, hue,
                         color_discrete_map, kde, multiple, log_scale, ignore_zero):
-        if sample_size:
-            df = df.sample(sample_size)
+        # If sample_size is defined, draw a sample
+        df = get_sample(df, sample_size) if sample_size else df
+
+        # Calculate the number of charts to plot
         nplots = len(cols)
         nrows = nplots//ncols
         if nplots % ncols:
             nrows += 1
 
+        # Create the figure with subplots
         fig, axs = plt.subplots(nrows=nrows, ncols=ncols, figsize=(fig_width, nrows * subplot_height), constrained_layout=True)
         if isinstance(axs, np.ndarray):
             if len(axs.shape) > 1:
@@ -751,9 +946,11 @@ def plot_charts(df: pd.DataFrame,
         else:
             axs = [axs]
 
+        # Iterate through each continuous column to plot
         for i, col in enumerate(cols):
             if hue is not None:
                 if ignore_zero:
+                    # Optionally ignore zero values in case they dwarf the rest of the chart
                     sns.histplot(data=df[df[col]>0], x=col, hue=hue, palette=color_discrete_map, ax=axs[i], kde=kde, multiple=multiple, log_scale=log_scale)
                 else:
                     sns.histplot(data=df, x=col, hue=hue, palette=color_discrete_map, ax=axs[i], kde=kde, multiple=multiple, log_scale=log_scale)
@@ -764,6 +961,7 @@ def plot_charts(df: pd.DataFrame,
                     sns.histplot(data=df, x=col, ax=axs[i])
             axs[i].set_title(col, fontsize=16, pad=10)
             axs[i].set_ylabel('Count', fontsize=12)
+            axs[i].yaxis.set_major_formatter(FuncFormatter(thousands))
             axs[i].set_xlabel(' ', fontsize=12)
             axs[i].tick_params(axis='x', rotation=rotation)
 
@@ -771,21 +969,28 @@ def plot_charts(df: pd.DataFrame,
         for empty_subplot in axs[nplots:]:
             fig.delaxes(empty_subplot)
 
+    # Start by getting counts of unique values
     unique_count = df.nunique()
-    if cat_cols is None:
-        cat_cols = unique_count[unique_count <= n].index.tolist()
-        if hue in cat_cols:
-            cat_cols.remove(hue)
-    if cont_cols is None:
-        cont_cols = unique_count[unique_count > n].index.tolist()
 
-    if dtype_check:
-        cont_cols = [col for col in cont_cols if df[col].dtype in ['int64', 'float64']]
-
+    # Plot the categorical columns, if selected
     if plot_type == 'cat' or plot_type == 'both':
+        if cat_cols is None:
+            # If columns not specified, find them based on less than or equal to 'n' unique values
+            cat_cols = unique_count[unique_count <= n].index.tolist()
+            # if hue in cat_cols:
+            #     cat_cols.remove(hue)
         plot_categorical(df, cat_cols, ncols, fig_width, subplot_height, rotation, sample_size, hue, color_discrete_map, normalize)
+
+    # Plot the continuous columns, if selected
     if plot_type == 'cont' or plot_type == 'both':
+        if cont_cols is None:
+            # If columns not specified, find them based on greater than 'n' unique values
+            cont_cols = unique_count[unique_count > n].index.tolist()
+        # If data type check is requested, filter out anything not int or float
+        if dtype_check:
+            cont_cols = [col for col in cont_cols if df[col].dtype in ['int64', 'float64']]
         plot_continuous(df, cont_cols, ncols, fig_width, subplot_height, sample_size, hue, color_discrete_map, kde, multiple, log_scale, ignore_zero)
+
 
 def plot_corr(df: pd.DataFrame,
               column: str,
@@ -887,4 +1092,144 @@ def plot_corr(df: pd.DataFrame,
     plt.xlabel('Other Variables', fontsize=14)
     plt.xticks(rotation=rotation)
     plt.ylim(-1, 1)
+    plt.show()
+
+
+def plot_map_ca(
+        df: pd.DataFrame,
+        lon: str = 'Longitude',
+        lat: str = 'Latitude',
+        hue: Optional[str] = None,
+        size: Optional[str] = None,
+        size_range: Tuple[int, int] = (50, 200),
+        title: str = 'Geographic Chart',
+        dot_size: Optional[int] = None,
+        alpha: float = 0.8,
+        color_map: Optional[str] = None,
+        fig_size: Tuple[int, int] = (12, 12)
+) -> None:
+    """
+    Plot longitude and latitude data on a geographic map of California.
+
+    This function creates a geographic map of California using Cartopy and
+    overlays data points from a DataFrame. The map includes major cities, county
+    boundaries, and geographic terrain features. Specify the columns in the
+    dataframe that map to the longitude (`lon`) and the latitude (`lat`). Then
+    specify an optional `hue` column to see changes in this variable by color,
+    and/or a `size` column to see changes in this varible by dot size. So two
+    variables can be visualized at once.
+
+    A few parameters can be customized, such as the range of the dot sizes
+    (`size_range`) if you're using `size`. You can also just use `dot_size` to
+    specify a fixed size for all the dots on the map. The `alpha` transparency
+    can be adjusted, to make sure you at least have a chance of seeing dots of
+    a different color that may be covered up by the top-most layer. You can also
+    customize the `color_map` for the `hue` parameter.
+
+    Use this function to visualize geospatial data related to
+    California on a clean map.
+
+    Note: This function requires a few libraries to be installed: Cartopy,
+    Geopandas, and Matplotlib (pyplot and patheffects). In addition, it uses
+    the 2018 Census Bureau's 5-meter county map files, which can be found here:
+    https://www2.census.gov/geo/tiger/GENZ2018/shp/cb_2018_us_county_5m.zip
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        DataFrame containing the data to be plotted.
+    lon : str, optional
+        Column name in `df` representing the longitude coordinates.
+        Default is 'Longitude'.
+    lat : str, optional
+        Column name in `df` representing the latitude coordinates.
+        Default is 'Latitude'.
+    hue : str, optional
+        Column name in `df` for color-coding the points. Default is
+        None.
+    size : str, optional
+        Column name in `df` to scale the size of points. Default is
+        None.
+    size_range : Tuple[int, int], optional
+        Range of sizes if the `size` parameter is used. Default is
+        (50, 200).
+    title : str, optional
+        Title of the plot. Default is 'Geographic Chart'.
+    dot_size : int, optional
+        Size of all dots if you want them to be uniform. Default is
+        None.
+    alpha : float, optional
+        Transparency of the points. Default is 0.8.
+    color_map : colors.Colormap, optional
+        Colormap to be used if `hue` is specified. Default is None.
+    fig_size : Tuple[int, int], optional
+        Size of the figure. Default is (12, 12).
+
+    Returns
+    -------
+    None
+
+    Examples
+    --------
+    >>> import pandas as pd
+    >>> data = {
+    ...     'longitude': [-122.23, -122.22, -122.24, -122.25, -122.25],
+    ...     'latitude': [37.88, 37.86, 37.85, 37.85, 37.85],
+    ...     'housing_median_age': [41.0, 21.0, 52.0, 52.0, 52.0],
+    ...     'total_rooms': [880.0, 7099.0, 1467.0, 1274.0, 1627.0],
+    ...     'total_bedrooms': [129.0, 1106.0, 190.0, 235.0, 280.0],
+    ...     'population': [322.0, 2401.0, 496.0, 558.0, 565.0],
+    ...     'households': [126.0, 1138.0, 177.0, 219.0, 259.0],
+    ...     'median_income': [8.3252, 8.3014, 7.2574, 5.6431, 3.8462],
+    ...     'median_house_value': [452600.0, 358500.0, 352100.0, 341300.0, 342200.0],
+    ...     'ocean_proximity': ['NEAR BAY', 'NEAR BAY', 'NEAR BAY', 'NEAR BAY', 'NEAR BAY']
+    ... }
+    >>> df = pd.DataFrame(data)
+    >>> plot_map_ca(df, lon='longitude', lat='latitude',
+    ...             hue='ocean_proximity', size='median_house_value',
+    ...             size_range=(100, 500), alpha=0.6,
+    ...             title='California Housing Data')
+    """
+    # Define the locations of major cities
+    large_ca_cities = {'Name': ['Fresno', 'Los Angeles', 'Sacramento', 'San Diego', 'San Francisco', 'San Jose'],
+                       'Latitude': [36.746842, 34.052233, 38.581572, 32.715328, 37.774931, 37.339386],
+                       'Longitude': [-119.772586, -118.243686, -121.494400, -117.157256, -122.419417, -121.894956],
+                       'County': ['Fresno', 'Los Angeles', 'Sacramento', 'San Diego', 'San Francisco', 'Santa Clara']}
+    df_large_cities = pd.DataFrame(large_ca_cities)
+
+    # Create a figure that utilizes Cartopy
+    fig = plt.figure(figsize=fig_size)
+    ax = plt.axes(projection=ccrs.PlateCarree())
+    ax.set_extent([-125, -114, 32, 42])
+
+    # Add geographic details
+    ax.add_feature(cfeature.LAND, facecolor='white')
+    ax.add_feature(cfeature.OCEAN, facecolor='lightgrey', alpha=0.5)
+    ax.add_feature(cfeature.COASTLINE)
+    ax.add_feature(cfeature.STATES)
+
+    # Add county boundaries
+    counties = gpd.read_file('data/cb_2018_us_county_5m.shp')
+    counties_ca = counties[counties['STATEFP'] == '06']
+    counties_ca = counties_ca.to_crs("EPSG:4326")
+    for geometry in counties_ca['geometry']:
+        ax.add_geometries([geometry], crs=ccrs.PlateCarree(), edgecolor='grey', alpha=0.3, facecolor='none')
+
+    # Draw the scatterplot of data
+    if dot_size:
+        ax.scatter(df[lon], df[lat], s=dot_size, cmap=color_map, alpha=alpha, transform=ccrs.PlateCarree())
+    else:
+        sns.scatterplot(data=df, x=lon, y=lat, hue=hue, size=size, alpha=alpha, ax=ax, palette=color_map, sizes=size_range)
+
+    # Add cities
+    ax.scatter(df_large_cities['Longitude'], df_large_cities['Latitude'], transform=ccrs.PlateCarree(), edgecolor='black')
+    for x, y, label in zip(df_large_cities['Longitude'], df_large_cities['Latitude'], df_large_cities['Name']):
+        text = ax.text(x + 0.05, y + 0.05, label, transform=ccrs.PlateCarree(), fontsize=12, ha='left', fontname='Arial')
+        text.set_path_effects([pe.withStroke(linewidth=3, foreground='white')])
+
+    # Finish up the chart
+    ax.set_title(title, fontsize=18, pad=15)
+    ax.set_xlabel('Longitude', fontsize=14, labelpad=15)
+    ax.set_ylabel('Latitude', fontsize=14)
+    ax.gridlines(draw_labels=True, color='lightgrey', alpha=0.5)
     plt.show()
