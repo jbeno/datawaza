@@ -19,6 +19,12 @@ by numeric vs. categorical variables, format numbers on the axis of a chart,
 perform log transformations, calculate VIF and Feature Permutation Importance,
 and extract the coefficients from models that support them.
 
+Classes:
+    - :class:`~datawaza.tools.LogTransformer` - Apply logarithmic transformation to numerical features.
+        - :meth:`~datawaza.tools.LogTransformer.fit` - Fit the transformer to the input data.
+        - :meth:`~datawaza.tools.LogTransformer.transform` - Apply the logarithmic transformation to the input data.
+        - :meth:`~datawaza.tools.LogTransformer.get_feature_names_out` - Get the feature names after applying the transformation.
+
 Functions:
     - :func:`~datawaza.tools.calc_pfi` - Calculate Permutation Feature Importance for a trained model.
     - :func:`~datawaza.tools.calc_vif` - Calculate the Variance Inflation Factor (VIF) for each feature.
@@ -29,13 +35,6 @@ Functions:
     - :func:`~datawaza.tools.split_dataframe` - Split a DataFrame into categorical and numerical columns.
     - :func:`~datawaza.tools.thousand_dollars` - Format a number as currency with thousands separators on a matplotlib chart axis.
     - :func:`~datawaza.tools.thousands` - Format a number with thousands separators on a matplotlib chart axis.
-
-Classes:
-    - :class:`~datawaza.tools.LogTransformer` - Apply logarithmic transformation to numerical features.
-        - :meth:`~datawaza.tools.LogTransformer.fit` - Fit the transformer to the input data.
-        - :meth:`~datawaza.tools.LogTransformer.transform` - Apply the logarithmic transformation to the input data.
-        - :meth:`~datawaza.tools.LogTransformer.get_feature_names_out` - Get the feature names after applying the transformation.
-        - :meth:`~datawaza.tools.LogTransformer.fit` - Fit the transformer to the input data.
 """
 
 # Metadata
@@ -1064,13 +1063,25 @@ class LogTransformer(BaseEstimator, TransformerMixin):
     of 1 plus the input values. It is useful for transforming skewed
     distributions to be more approximately normal.
 
-    The transformer inherits from `BaseEstimator` and `TransformerMixin`
+    The transformer inherits from BaseEstimator and TransformerMixin
     to ensure compatibility with scikit-learn pipelines and model
     selection tools.
 
-    Methods
-    -------
-    fit(X, y=None)
+    Examples
+    --------
+    >>> from sklearn.datasets import load_iris
+    >>> X, _ = load_iris(return_X_y=True)
+    >>> transformer = LogTransformer()
+    >>> X_transformed = transformer.fit_transform(X)
+    >>> transformer.get_feature_names_out(['sepal_length', 'sepal_width',
+    ...                                     'petal_length', 'petal_width'])
+    ['sepal_length_log', 'sepal_width_log', 'petal_length_log', 'petal_width_log']
+    """
+    def __init__(self):
+        pass
+
+    def fit(self, X, y=None):
+        """
         Fit the transformer to the input data.
 
         Parameters
@@ -1085,8 +1096,11 @@ class LogTransformer(BaseEstimator, TransformerMixin):
         -------
         self : LogTransformer
             The fitted transformer.
+        """
+        return self
 
-    transform(X)
+    def transform(self, X):
+        """
         Apply the logarithmic transformation to the input data.
 
         Parameters
@@ -1098,8 +1112,11 @@ class LogTransformer(BaseEstimator, TransformerMixin):
         -------
         X_transformed : array-like of shape (n_samples, n_features)
             The transformed data.
+        """
+        return np.log1p(X)
 
-    get_feature_names_out(input_features=None)
+    def get_feature_names_out(self, input_features=None):
+        """
         Get the feature names after applying the transformation.
 
         Parameters
@@ -1111,29 +1128,8 @@ class LogTransformer(BaseEstimator, TransformerMixin):
         Returns
         -------
         feature_names_out : list of str
-            The feature names after applying the transformation, prefixed
-            with 'log_'.
-
-    Examples
-    --------
-    >>> from sklearn.datasets import load_iris
-    >>> X, _ = load_iris(return_X_y=True)
-    >>> transformer = LogTransformer()
-    >>> X_transformed = transformer.fit_transform(X)
-    >>> transformer.get_feature_names_out(['sepal_length', 'sepal_width',
-    ...                                     'petal_length', 'petal_width'])
-    ['log_sepal_length', 'log_sepal_width', 'log_petal_length', 'log_petal_width']
-    """
-
-    def __init__(self):
-        pass
-
-    def fit(self, X, y=None):
-        return self
-
-    def transform(self, X):
-        return np.log1p(X)
-
-    def get_feature_names_out(self, input_features=None):
-        return [f"log_{col}" for col in input_features]
+            The feature names after applying the transformation, suffixed
+            with '_log'.
+        """
+        return [f"{col}_log" for col in input_features]
 
