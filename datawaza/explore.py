@@ -31,7 +31,7 @@ Functions:
 # Metadata
 __author__ = "Jim Beno"
 __email__ = "jim@jimbeno.net"
-__version__ = "0.1"
+__version__ = "0.1.0"
 __license__ = "GNU GPLv3"
 
 # Imports
@@ -45,6 +45,7 @@ from typing import Optional, Union, Tuple, List, Dict
 from scipy.stats import iqr
 import plotly.express as px
 from datawaza.tools import thousands
+
 # Required for geographic mapping
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature

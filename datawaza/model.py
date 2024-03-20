@@ -26,79 +26,48 @@ Functions:
 # Metadata
 __author__ = "Jim Beno"
 __email__ = "jim@jimbeno.net"
-__version__ = "0.1"
+__version__ = "0.1.0"
 __license__ = "GNU GPLv3"
 
-# Imports
-from datawaza.tools import calc_pfi, calc_vif, extract_coef, log_transform, thousand_dollars, thousands
-from typing import Any, Dict, List, Optional, Union, Tuple
+# Standard library imports
+import os
+from datetime import datetime
+
+# Data manipulation and analysis
+import numpy as np
+import pandas as pd
+import pytz
+
+# Visualization libraries
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter
 import seaborn as sns
-import pandas as pd
-import numpy as np
-from sklearn.preprocessing import StandardScaler, OneHotEncoder, PolynomialFeatures, RobustScaler
-from sklearn.preprocessing import OrdinalEncoder, MinMaxScaler, FunctionTransformer
-from sklearn.linear_model import Ridge, Lasso
-from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor, RandomForestClassifier, VotingClassifier, VotingRegressor
-from sklearn.ensemble import BaggingRegressor, BaggingClassifier, GradientBoostingClassifier, GradientBoostingRegressor, AdaBoostClassifier
-from sklearn.ensemble import AdaBoostRegressor
-from category_encoders import JamesSteinEncoder
-# from sklearn.experimental import enable_halving_search_cv
-from sklearn.tree import DecisionTreeClassifier, export_text, plot_tree, DecisionTreeRegressor
-from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
-from sklearn.linear_model import LogisticRegression
-from sklearn.svm import SVC, SVR
-# from sklearn.naive_bayes import MultinomialNB
-# from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
-# from sklearn.model_selection import RandomizedSearchCV, HalvingGridSearchCV, HalvingRandomSearchCV
-from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score, max_error
-# from sklearn.metrics import confusion_matrix, classification_report, roc_curve, precision_recall_curve
-# from sklearn.metrics import ConfusionMatrixDisplay, RocCurveDisplay
-# from sklearn.metrics import make_scorer, precision_score, recall_score, f1_score, roc_auc_score
-# from sklearn.metrics import accuracy_score
-# from sklearn.inspection import permutation_importance
-from sklearn.impute import KNNImputer, SimpleImputer
-from sklearn.pipeline import Pipeline
-from sklearn.compose import make_column_transformer, ColumnTransformer, TransformedTargetRegressor
-# from sklearn.base import BaseEstimator, TransformerMixin
-from sklearn.linear_model import LinearRegression
-from sklearn.model_selection import train_test_split, cross_val_score, GridSearchCV, KFold
-from sklearn.feature_selection import RFE, SequentialFeatureSelector
-# from sklearn.neighbors import NearestNeighbors
-# from sklearn.cluster import KMeans, DBSCAN
-# from xgboost import XGBClassifier
-from sklearn.base import clone
 
-import os
-# import tensorflow as tf
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
-#os.environ['PATH'] = "/usr/local/bin:" + os.environ['PATH']
-# from tensorflow import keras
-# from scikeras.wrappers import KerasClassifier
-# from tensorflow.keras.layers import Dense, Dropout, Activation
-# from tensorflow.keras.regularizers import l2
-# from keras.utils import plot_model
-# import pydot
-# from IPython.display import Image
-# import copy
-#
-# from statsmodels.stats.outliers_influence import variance_inflation_factor
-# from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
-from datetime import datetime
-# import time
-from joblib import dump, load
-import pytz
-# import re
-# import collections
-# from scipy.stats import skew, kurtosis, iqr
-# from imblearn.over_sampling import SMOTE
-# from imblearn.under_sampling import RandomUnderSampler
-# import warnings
-# from sklearn.base import BaseEstimator, TransformerMixin
-# from nltk.stem import PorterStemmer, WordNetLemmatizer
-# from nltk.tokenize import word_tokenize
-# from nltk import download
+# Scikit-learn imports
+from sklearn.compose import ColumnTransformer, TransformedTargetRegressor
+from sklearn.ensemble import (AdaBoostClassifier, AdaBoostRegressor, BaggingClassifier, BaggingRegressor,
+                              GradientBoostingClassifier, GradientBoostingRegressor, RandomForestClassifier,
+                              RandomForestRegressor, VotingRegressor)
+from sklearn.feature_selection import RFE, SequentialFeatureSelector
+from sklearn.impute import KNNImputer, SimpleImputer
+from sklearn.linear_model import (Lasso, LinearRegression, LogisticRegression, Ridge)
+from sklearn.metrics import mean_absolute_error, mean_squared_error
+from sklearn.model_selection import GridSearchCV, KFold, cross_val_score, train_test_split
+from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import (FunctionTransformer, MinMaxScaler, OneHotEncoder, OrdinalEncoder,
+                                   PolynomialFeatures, RobustScaler, StandardScaler)
+from sklearn.svm import SVC, SVR
+from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
+
+# Other third-party libraries for machine learning
+from category_encoders import JamesSteinEncoder
+
+# Local Datawaza helper function imports
+from datawaza.tools import calc_pfi, calc_vif, extract_coef, log_transform, thousands
+
+# Miscellaneous imports
+from joblib import dump
 
 
 # Functions

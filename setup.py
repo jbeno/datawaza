@@ -57,12 +57,11 @@ setup(
     url='https://datawaza.com',
     project_urls={
         'Documentation': 'https://datawaza.com',
-        'Source': 'https://github.com/jbeno/datawaza',
-        # You can also include other links such as 'Issue Tracker', 'Funding', etc.
+        'Source': 'https://github.com/jbeno/datawaza'
     },
     keywords=['data science', 'visualization', 'machine learning', 'data analysis'],
     classifiers=[
-        'Development Status :: 4 - Beta',
+        'Development Status :: 3 - Alpha',
         'Intended Audience :: Science/Research',
         'Intended Audience :: Developers',
         'Programming Language :: Python :: 3.10',
