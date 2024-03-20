@@ -20,8 +20,8 @@ sys.path.insert(0, os.path.abspath('..'))
 project = 'Datawaza'
 copyright = '2024, Jim Beno'
 author = 'Jim Beno'
-version = '0.1.0'
-release = '0.1.0'
+version = '0.1'
+release = '0.1.1'
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration

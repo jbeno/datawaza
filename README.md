@@ -1,5 +1,5 @@
 <br />
-<img src="docs/_static/datawaza_logo_name_trans.svg" alt="datawaza_logo_name_trans.svg" width="300"/>
+<img src="https://www.datawaza.com/en/latest/_static/datawaza_logo_name_trans.svg" alt="datawaza_logo_name_trans.svg" width="300"/>
 
 --------------------------------------
 [![PyPI Version](https://img.shields.io/pypi/v/datawaza)](https://pypi.org/project/datawaza/)
@@ -12,19 +12,19 @@
 Datawaza streamlines common Data Science tasks. It's a collection of tools for data exploration, visualization, data cleaning, pipeline creation, hyper-parameter searching, model iteration, and evaluation. It builds upon core libraries like [Pandas](https://pandas.pydata.org/), [Matplotlib](https://matplotlib.org/), [Seaborn](https://seaborn.pydata.org/), and [Scikit-Learn](https://scikit-learn.org/stable/).
 
 <p align="center">
-  <a href="https://www.datawaza.com/en/latest/explore.html#datawaza.explore.plot_charts"><img src="docs/_static/plot_charts.png" width="30%" /></a>
-  <a href="https://www.datawaza.com/en/latest/explore.html#datawaza.explore.plot_map_ca"><img src="docs/_static/plot_map_ca.png" width="30%" style="margin:0 1%;" /></a>
-  <a href="https://www.datawaza.com/en/latest/explore.html#datawaza.explore.plot_3d"><img src="docs/_static/plot_3d.png" width="30%" /></a>
+  <a href="https://www.datawaza.com/en/latest/explore.html#datawaza.explore.plot_charts"><img src="https://www.datawaza.com/en/latest/_static/plot_charts.png" width="30%" /></a>
+  <a href="https://www.datawaza.com/en/latest/explore.html#datawaza.explore.plot_map_ca"><img src="https://www.datawaza.com/en/latest/_static/plot_map_ca.png" width="30%" style="margin:0 1%;" /></a>
+  <a href="https://www.datawaza.com/en/latest/explore.html#datawaza.explore.plot_3d"><img src="https://www.datawaza.com/en/latest/_static/plot_3d.png" width="30%" /></a>
 </p>
 <p align="center">
-  <a href="https://www.datawaza.com/en/latest/model.html#datawaza.model.iterate_model"><img src="docs/_static/iterate_model_1.png" width="30%" /></a>
-  <a href="https://www.datawaza.com/en/latest/model.html#datawaza.model.iterate_model"><img src="docs/_static/iterate_model_2.png" width="30%" style="margin:0 1%;" /></a>
-  <a href="https://www.datawaza.com/en/latest/model.html#datawaza.model.plot_results"><img src="docs/_static/plot_results.png" width="30%" /></a>
+  <a href="https://www.datawaza.com/en/latest/model.html#datawaza.model.iterate_model"><img src="https://www.datawaza.com/en/latest/_static/iterate_model_1.png" width="30%" /></a>
+  <a href="https://www.datawaza.com/en/latest/model.html#datawaza.model.iterate_model"><img src="https://www.datawaza.com/en/latest/_static/iterate_model_2.png" width="30%" style="margin:0 1%;" /></a>
+  <a href="https://www.datawaza.com/en/latest/model.html#datawaza.model.plot_results"><img src="https://www.datawaza.com/en/latest/_static/plot_results.png" width="30%" /></a>
 </p>
 <p align="center">
-  <a href="https://www.datawaza.com/en/latest/explore.html#datawaza.explore.get_corr"><img src="docs/_static/get_corr.png" width="30%" /></a>
-  <a href="https://www.datawaza.com/en/latest/clean.html#datawaza.clean.reduce_multicollinearity"><img src="docs/_static/reduce_multicollinearity.png" width="30%" style="margin:0 1%;" /></a>
-  <a href="https://www.datawaza.com/en/latest/explore.html#datawaza.explore.plot_corr"><img src="docs/_static/plot_corr.png" width="30%" /></a>
+  <a href="https://www.datawaza.com/en/latest/explore.html#datawaza.explore.get_corr"><img src="https://www.datawaza.com/en/latest/_static/get_corr.png" width="30%" /></a>
+  <a href="https://www.datawaza.com/en/latest/clean.html#datawaza.clean.reduce_multicollinearity"><img src="https://www.datawaza.com/en/latest/_static/reduce_multicollinearity.png" width="30%" style="margin:0 1%;" /></a>
+  <a href="https://www.datawaza.com/en/latest/explore.html#datawaza.explore.plot_corr"><img src="https://www.datawaza.com/en/latest/_static/plot_corr.png" width="30%" /></a>
 </p>
 
 

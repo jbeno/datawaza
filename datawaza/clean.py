@@ -29,7 +29,7 @@ Functions:
 # Metadata
 __author__ = "Jim Beno"
 __email__ = "jim@jimbeno.net"
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 __license__ = "GNU GPLv3"
 
 # Imports
