@@ -20,7 +20,7 @@ sys.path.insert(0, os.path.abspath('..'))
 project = 'Datawaza'
 copyright = '2024, Jim Beno'
 author = 'Jim Beno'
-version = '0.1'
+version = '0.1.0'
 release = '0.1.0'
 
 # -- General configuration ---------------------------------------------------
@@ -44,6 +44,7 @@ exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 
 html_theme = 'pydata_sphinx_theme'
 html_static_path = ['_static']
+html_favicon = '_static/datawaza_logo_favicon_32x32.png'
 
 html_theme_options = {
     'logo': {

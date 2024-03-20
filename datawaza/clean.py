@@ -347,19 +347,20 @@ def convert_time_values(
         df: pd.DataFrame,
         cols: List[str],
         target_format: str = '%Y-%m-%d %H:%M:%S',
+        target_dtype: Union[str, type, np.dtype] = 'datetime64[ns]',
         show_results: bool = False,
         inplace: bool = False,
         zero_to_nan: bool = False,
         pattern_list: Optional[List[str]] = None
 ) -> Optional[pd.DataFrame]:
     """
-    Convert time values in specified columns of a DataFrame to a target format.
+    Convert time values in columns of a DataFrame to a target format and data type.
 
     This function converts time values in the specified columns of the input
-    DataFrame to the desired target format, and changes their dtype to a Pandas
-    datetime object. If `inplace` is set to True, the conversion is done in place,
-    modifying the original DataFrame. If `inplace` is False (default), a new
-    DataFrame with the converted values is returned.
+    DataFrame to the desired target format and data type. If `inplace` is set to
+    True, the conversion is done in place, modifying the original DataFrame. If
+    `inplace` is False (default), a new DataFrame with the converted values is
+    returned.
 
     The function can handle time values in various formats, including:
     1. Excel serial format (e.g., '45161.23458')
@@ -374,8 +375,19 @@ def convert_time_values(
     Unix Epoch format with value 1970-01-01 00:00:00.
 
     You can use the default `target_format` of '%Y-%m-%d %H:%M:%S', or specify
-    a different format. To display a summary of the changes made, set
-    `show_results` to True.
+    a different format. The `target_dtype` parameter allows you to specify the
+    desired data type for the converted columns. When working with formatted date
+    strings, the applicable data types are 'str', 'object', or 'datetime64[ns]'.
+
+    - If `target_dtype` is set to 'str' or 'object', the converted data will be
+      stored as strings in the specified `target_format`. Missing values will be
+      represented as 'NaN'.
+
+    - If `target_dtype` is set to 'datetime64[ns]', the converted data will be
+      stored as pandas datetime objects. The `target_format` has no effect in
+      this scenario. Missing values will be represented as 'NaT'.
+
+    To display a summary of the changes made, set `show_results` to True.
 
     Parameters
     ----------
@@ -388,6 +400,9 @@ def convert_time_values(
         %Y: 4-digit year, %m: Month as zero-padded decimal, %d: Day of the month,
         %H: Hour (24-hour clock), %M: Minute, %S: Second.
         Default format is '%Y-%m-%d %H:%M:%S'.
+    target_dtype : Union[str, type, np.dtype], optional
+        The desired data type for the converted columns. Applicable data types are
+        'str', 'object', or 'datetime64[ns]'. Default is 'datetime64[ns]'.
     show_results : bool, optional
         If set to True, prints the before-and-after conversion values for each
         cell. Default is False.
@@ -397,7 +412,7 @@ def convert_time_values(
         is returned.
     zero_to_nan : bool, optional
         If set to True, values of '0', '0.0', '0.00', 0, 0.0, or 0.00 will be
-        replaced with NaN. Default is False.
+        replaced with NaN or NaT, depending on `target_dtype`. Default is False.
     pattern_list : List[str], optional
         A list of custom datetime patterns to override the default patterns.
         If provided, it will be used instead of the default patterns.
@@ -407,8 +422,8 @@ def convert_time_values(
     -------
     pd.DataFrame or None
         If `inplace` is False (default), returns a new DataFrame with the specified
-        columns converted to the target format. If `inplace` is True, returns None
-        as the original DataFrame is modified in place.
+        columns converted to the target format and data type. If `inplace` is True,
+        returns None as the original DataFrame is modified in place.
 
     Examples
     --------
@@ -421,20 +436,45 @@ def convert_time_values(
     ... })
     >>> cols = ['A', 'B', 'C']
 
-    Example 1: Convert time values in specified columns to the default format:
+    Example 1: Convert time values in specified columns to the default format
+    and data type:
 
     >>> df_converted = convert_time_values(df, cols)
     >>> df_converted
-                         A                    B                    C
-    0  2023-08-25 05:37:47  2022-01-01 00:00:00  1970-01-01 00:00:00
-    1  2019-02-09 00:00:00  2023-03-17 12:00:00  2023-08-25 05:37:47
-    2  2021-12-24 00:00:00  2020-01-01 00:00:00  2019-02-09 00:00:00
+                        A                   B                   C
+    0 2023-08-25 05:37:47 2022-01-01 00:00:00 1970-01-01 00:00:00
+    1 2019-02-09 00:00:00 2023-03-17 12:00:00 2023-08-25 05:37:47
+    2 2021-12-24 00:00:00 2020-01-01 00:00:00 2019-02-09 00:00:00
+    >>> df_converted.dtypes
+    A    datetime64[ns]
+    B    datetime64[ns]
+    C    datetime64[ns]
+    dtype: object
 
-    Example 2: Convert time values to a custom format in place, replacing zeros
-    with NaN, and showing a summary of changes:
+    Example 2: Convert time values in specified columns to the default format
+    and data type, showing a summary of changes:
 
-    >>> convert_time_values(df, cols, target_format='%d/%m/%Y', inplace=True,
-    ... show_results=True, zero_to_nan=True)
+    >>> df_converted = convert_time_values(df, cols, show_results=True)
+    Original: 45161.23458 (Excel Serial) -> Converted: 2023-08-25 05:37:47
+    Original: 2019-02-09 (Standard Datetime String) -> Converted: 2019-02-09 00:00:00
+    Original: 1640304000000.0 (UNIX Epoch in milliseconds) -> Converted: 2021-12-24 00:00:00
+    Original: 2022-01-01 (Standard Datetime String) -> Converted: 2022-01-01 00:00:00
+    Original: 45000.5 (Excel Serial) -> Converted: 2023-03-17 12:00:00
+    Original: 1577836800000.0 (UNIX Epoch in milliseconds) -> Converted: 2020-01-01 00:00:00
+    Original: 0 (UNIX Epoch) -> Converted: 1970-01-01 00:00:00
+    Original: 45161.23458 (Excel Serial) -> Converted: 2023-08-25 05:37:47
+    Original: 2019-02-09 (Standard Datetime String) -> Converted: 2019-02-09 00:00:00
+    >>> df_converted
+                        A                   B                   C
+    0 2023-08-25 05:37:47 2022-01-01 00:00:00 1970-01-01 00:00:00
+    1 2019-02-09 00:00:00 2023-03-17 12:00:00 2023-08-25 05:37:47
+    2 2021-12-24 00:00:00 2020-01-01 00:00:00 2019-02-09 00:00:00
+
+    Example 3: Convert time values to a custom format and data type in place,
+    replacing zeros with NaN, and showing a summary of changes:
+
+    >>> convert_time_values(df, cols, target_format='%d/%m/%Y', target_dtype='str',
+    ... inplace=True, show_results=True, zero_to_nan=True)
     Original: 45161.23458 (Excel Serial) -> Converted: 25/08/2023
     Original: 2019-02-09 (Standard Datetime String) -> Converted: 09/02/2019
     Original: 1640304000000.0 (UNIX Epoch in milliseconds) -> Converted: 24/12/2021
@@ -449,6 +489,11 @@ def convert_time_values(
     0  25/08/2023  01/01/2022         NaN
     1  09/02/2019  17/03/2023  25/08/2023
     2  24/12/2021  01/01/2020  09/02/2019
+    >>> df.dtypes
+    A    object
+    B    object
+    C    object
+    dtype: object
     """
     # Default datetime patterns
     default_patterns = [
@@ -471,17 +516,27 @@ def convert_time_values(
     for col in cols:
         # Function to convert a time value
         def convert_value(value):
-            # If value is NaN, return NaN
-            if pd.isna(value):
-                if show_results:
-                    print(f"Original: NaN -> Converted: NaN")
-                return np.nan
+            # If value is NaN or NaT, return the appropriate missing value based on target_dtype
+            if pd.isna(value) or value is pd.NaT:
+                if target_dtype == 'datetime64[ns]':
+                    converted_value = pd.NaT
+                else:
+                    converted_value = 'NaN'
 
-            # If zero_to_nan is True and value matches zero patterns, return NaN
-            if zero_to_nan and str(value) in zero_patterns:
                 if show_results:
-                    print(f"Original: {value} (Zero) -> Converted: NaN")
-                return np.nan
+                    print(f"Original: {value} -> Converted: {converted_value}")
+                return converted_value
+
+            # If zero_to_nan is True and value matches zero patterns, return the appropriate missing value based on target_dtype
+            if zero_to_nan and str(value) in zero_patterns:
+                if target_dtype == 'datetime64[ns]':
+                    converted_value = pd.NaT
+                else:
+                    converted_value = 'NaN'
+
+                if show_results:
+                    print(f"Original: {value} (Zero) -> Converted: {converted_value}")
+                return converted_value
 
             detected_format = None
 
@@ -507,7 +562,7 @@ def convert_time_values(
                     else:
                         raise ValueError(f"Unrecognized format for value: {value}")
 
-                # Format conversion
+                # Format conversion using the specified target_format
                 formatted_datetime = datetime_val.strftime(target_format)
 
             except Exception as e:
@@ -521,9 +576,9 @@ def convert_time_values(
         # Apply the conversion function to values in each column
         df[col] = df[col].apply(convert_value)
 
-    # Convert the modified columns to pandas datetime format
+    # Convert the modified columns to the specified data type
     for col in cols:
-        df[col] = pd.to_datetime(df[col], format=target_format, errors='coerce')
+        df[col] = df[col].astype(target_dtype)
 
     # Return a dataframe only if not modifying in place
     if inplace:
@@ -654,6 +709,7 @@ def reduce_multicollinearity(
 
             high_corr_features = corr_matrix[feature][corr_matrix[feature].abs() >= corr_threshold].index.drop(feature)
             high_corr_features = high_corr_features.difference(evaluated_pairs)
+            high_corr_features = sorted(high_corr_features)
 
             for other_feature in high_corr_features:
                 if other_feature not in kept_features or other_feature == target_col:

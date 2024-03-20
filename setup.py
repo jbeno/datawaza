@@ -1,11 +1,15 @@
 from setuptools import setup, find_packages
 
+# Read the contents of the README file
+with open('README.md', 'r', encoding='utf-8') as fh:
+    long_description = fh.read()
+
 setup(
-    name="datawaza",
-    version="0.1.0",
-    python_requires='>=3.10',
-    packages=find_packages(),
-    package_data={
+    name = 'datawaza',
+    version = '0.1.0',
+    python_requires = '>=3.10',
+    packages = find_packages(),
+    package_data = {
         # Specify files within the datawaza package
         'datawaza': ['data/*.xml', 'data/*.dbf', 'data/*.shp', 'data/*.shx', 'data/*.cpg', 'data/*.prj'],
     },
@@ -27,23 +31,46 @@ setup(
         'statsmodels~=0.14.1',
         'plotly~=5.19.0'
     ],
-    author="Jim Beno",
-    author_email="jim@jimbeno.net",
+    extras_require = {
+        'dev': [
+            'pydata_sphinx_theme==0.15.2',
+            'sphinx-design==0.5.0',
+            'Sphinx==7.2.6',
+            'sphinx-rtd-theme==2.0.0',
+            'sphinxcontrib-applehelp==1.0.8',
+            'sphinxcontrib-devhelp==1.0.6',
+            'sphinxcontrib-htmlhelp==2.0.5',
+            'sphinxcontrib-jquery==4.1',
+            'sphinxcontrib-jsmath==1.0.1',
+            'sphinxcontrib-qthelp==1.0.7',
+            'sphinxcontrib-serializinghtml==1.1.10',
+            'myst-parser==2.0.0',
+            'sphinx-favicon==1.0.1',
+            'nbsphinx==0.9.3'
+        ]
+    },
+    author='Jim Beno',
+    author_email='jim@jimbeno.net',
     description="Datawaza is a collection of tools for data exploration, visualization, data cleaning, pipeline creation, model iteration, and evaluation.",
-    long_description=open('README.md').read(),
-    long_description_content_type="text/markdown",
-    url="https://github.com/jbeno/datawaza",
+    long_description=long_description,
+    long_description_content_type='text/markdown',
+    url='https://datawaza.com',
+    project_urls={
+        'Documentation': 'https://datawaza.com',
+        'Source': 'https://github.com/jbeno/datawaza',
+        # You can also include other links such as 'Issue Tracker', 'Funding', etc.
+    },
     keywords=['data science', 'visualization', 'machine learning', 'data analysis'],
     classifiers=[
-        "Development Status :: 4 - Beta",
-        "Intended Audience :: Science/Research",
-        "Intended Audience :: Developers",
-        "Programming Language :: Python :: 3.10",
-        "Operating System :: OS Independent",
-        "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
-        "Natural Language :: English",
-        "Topic :: Software Development :: Libraries :: Python Modules",
-        "Topic :: Scientific/Engineering :: Visualization",
-        "Topic :: Scientific/Engineering :: Information Analysis"
+        'Development Status :: 4 - Beta',
+        'Intended Audience :: Science/Research',
+        'Intended Audience :: Developers',
+        'Programming Language :: Python :: 3.10',
+        'Operating System :: OS Independent',
+        'License :: OSI Approved :: GNU General Public License v3 (GPLv3)',
+        'Natural Language :: English',
+        'Topic :: Software Development :: Libraries :: Python Modules',
+        'Topic :: Scientific/Engineering :: Visualization',
+        'Topic :: Scientific/Engineering :: Information Analysis'
     ]
 )

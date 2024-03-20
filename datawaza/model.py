@@ -156,41 +156,42 @@ def create_pipeline(
 
     Here is an example of the configuration dictionary structure:
 
-    >>> config = {
-    >>>     'imputers': {
-    >>>         'knn_imputer': KNNImputer().set_output(transform='pandas'),
-    >>>         'simple_imputer': SimpleImputer()
-    >>>     },
-    >>>     'transformers': {
-    >>>         'ohe': (OneHotEncoder(drop='if_binary', handle_unknown='ignore'),
-    >>>                 cat_columns),
-    >>>         'ord': (OrdinalEncoder(), cat_columns),
-    >>>         'poly2': (PolynomialFeatures(degree=2, include_bias=False),
-    >>>                   num_columns),
-    >>>         'log': (FunctionTransformer(np.log1p, validate=True),
-    >>>                 num_columns)
-    >>>     },
-    >>>     'scalers': {
-    >>>         'stand': StandardScaler(),
-    >>>         'minmax': MinMaxScaler()
-    >>>     },
-    >>>     'selectors': {
-    >>>         'rfe_logreg': RFE(LogisticRegression(max_iter=max_iter,
-    >>>                                         random_state=random_state,
-    >>>                                         class_weight=class_weight)),
-    >>>         'sfs_linreg': SequentialFeatureSelector(LinearRegression())
-    >>>     },
-    >>>     'models': {
-    >>>         'linreg': LinearRegression(),
-    >>>         'logreg': LogisticRegression(max_iter=max_iter,
-    >>>                                      random_state=random_state,
-    >>>                                      class_weight=class_weight),
-    >>>         'tree_class': DecisionTreeClassifier(random_state=random_state),
-    >>>         'tree_reg': DecisionTreeRegressor(random_state=random_state)
-    >>>     },
-    >>>     'no_scale': ['tree_class', 'tree_reg'],
-    >>>     'no_poly': ['tree_class', 'tree_reg']
-    >>> }
+    >>> config = {  # doctest: +SKIP
+    ...     'imputers': {
+    ...         'knn_imputer': KNNImputer().set_output(transform='pandas'),
+    ...         'simple_imputer': SimpleImputer()
+    ...     },
+    ...     'transformers': {
+    ...         'ohe': (OneHotEncoder(drop='if_binary', handle_unknown='ignore'),
+    ...                 cat_columns),
+    ...         'ord': (OrdinalEncoder(), cat_columns),
+    ...         'poly2': (PolynomialFeatures(degree=2, include_bias=False),
+    ...                   num_columns),
+    ...         'log': (FunctionTransformer(np.log1p, validate=True),
+    ...                 num_columns)
+    ...     },
+    ...     'scalers': {
+    ...         'stand': StandardScaler(),
+    ...         'minmax': MinMaxScaler()
+    ...     },
+    ...     'selectors': {
+    ...         'rfe_logreg': RFE(LogisticRegression(max_iter=max_iter,
+    ...                                         random_state=random_state,
+    ...                                         class_weight=class_weight)),
+    ...         'sfs_linreg': SequentialFeatureSelector(LinearRegression())
+    ...     },
+    ...     'models': {
+    ...         'linreg': LinearRegression(),
+    ...         'logreg': LogisticRegression(max_iter=max_iter,
+    ...                                      random_state=random_state,
+    ...                                      class_weight=class_weight),
+    ...         'tree_class': DecisionTreeClassifier(random_state=random_state),
+    ...         'tree_reg': DecisionTreeRegressor(random_state=random_state)
+    ...     },
+    ...     'no_scale': ['tree_class', 'tree_reg'],
+    ...     'no_poly': ['tree_class', 'tree_reg'],
+    ... }
+
 
     Use this function to quickly create a pipeline during model iteration and
     evaluation. You can easily experiment with different combinations of
@@ -273,7 +274,11 @@ def create_pipeline(
     ...                            cat_columns=cat_columns,
     ...                            num_columns=num_columns)
     >>> pipeline.steps
-    [('ohe', ColumnTransformer(remainder='passthrough', transformers=[])), ('stand', StandardScaler()), ('logreg', LogisticRegression(max_iter=10000, random_state=42))]
+    [('ohe', ColumnTransformer(remainder='passthrough',
+                      transformers=[('ohe',
+                                     OneHotEncoder(drop='if_binary',
+                                                   handle_unknown='ignore'),
+                                     ['ocean_proximity'])])), ('stand', StandardScaler()), ('logreg', LogisticRegression(max_iter=10000, random_state=42))]
 
     Example 3: Create a pipeline with KNN Imputer, One-Hot Encoding, Polynomial
     Transformation, Log Transformation, Standard Scaler, and Gradient Boost
@@ -287,8 +292,18 @@ def create_pipeline(
     ...                            num_columns=num_columns)
     >>> pipeline.steps
     [('knn_imputer', KNNImputer()), ('ohe_poly2_log', ColumnTransformer(remainder='passthrough',
-                      transformers=[('poly2',
+                      transformers=[('ohe',
+                                     OneHotEncoder(drop='if_binary',
+                                                   handle_unknown='ignore'),
+                                     ['ocean_proximity']),
+                                    ('poly2',
                                      PolynomialFeatures(include_bias=False),
+                                     ['longitude', 'latitude', 'housing_median_age',
+                                      'total_rooms', 'total_bedrooms', 'population',
+                                      'households', 'median_income']),
+                                    ('log',
+                                     FunctionTransformer(func=<ufunc 'log1p'>,
+                                                         validate=True),
                                      ['longitude', 'latitude', 'housing_median_age',
                                       'total_rooms', 'total_bedrooms', 'population',
                                       'households', 'median_income'])])), ('stand', StandardScaler()), ('boost_reg', GradientBoostingRegressor(random_state=42))]

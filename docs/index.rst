@@ -1,10 +1,5 @@
-.. Datawaza documentation master file, created by
-   sphinx-quickstart on Sun Jan 21 12:45:12 2024.
-   You can adapt this file completely to your liking, but it should at least
-   contain the root `toctree` directive.
-
-Datawaza documentation
-======================
+Datawaza
+========
 Datawaza is a collection of tools for data exploration, visualization, data cleaning, pipeline creation, model iteration, and evaluation. It builds upon core libraries like `pandas <https://pandas.pydata.org/>`_, `matplotlib <https://matplotlib.org/>`_, `seaborn <https://seaborn.pydata.org/>`_, and `scikit-learn <https://scikit-learn.org/stable/>`_.
 
 Modules

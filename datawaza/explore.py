@@ -44,7 +44,7 @@ from pandas import DataFrame
 from typing import Optional, Union, Tuple, List, Dict
 from scipy.stats import iqr
 import plotly.express as px
-from .tools import thousands
+from datawaza.tools import thousands
 # Required for geographic mapping
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
@@ -258,6 +258,8 @@ def get_outliers(
     Prepare the data for the examples:
 
     >>> np.random.seed(0)  # For reproducibility
+    >>> pd.set_option('display.max_columns', None)  # For test consistency
+    >>> pd.set_option('display.width', None)  # For test consistency
     >>> df = pd.DataFrame({
     ...     'A': np.random.randn(100),
     ...     'B': np.random.exponential(scale=2.0, size=100),
@@ -271,22 +273,18 @@ def get_outliers(
 
     >>> outlier_summary = get_outliers(df, num_columns)
     >>> print(outlier_summary)
-      Column  Total Non-Null  Total Zero  ...  Outlier Percent  Skewness  Kurtosis
-    1      B              98           0  ...             4.08      2.62     10.48
-    0      A             100           2  ...             1.00      0.01     -0.25
-    2      C             100           0  ...             1.00     -0.03      0.19
-    <BLANKLINE>
-    [3 rows x 8 columns]
+      Column  Total Non-Null  Total Zero  Zero Percent  Outlier Count  Outlier Percent  Skewness  Kurtosis
+    1      B              98           0           0.0              4             4.08      2.62     10.48
+    0      A             100           2           2.0              1             1.00      0.01     -0.25
+    2      C             100           0           0.0              1             1.00     -0.03      0.19
 
     Example 2: Create a dataframe that lists outlier statistics, excluding zeros:
 
     >>> outlier_summary = get_outliers(df, num_columns, exclude_zeros=True)
     >>> print(outlier_summary)
-      Column  Total Non-Null  Total Zero  ...  Outlier Percent  Skewness  Kurtosis
-    0      B              98           0  ...             4.08      2.62     10.48
-    1      C             100           0  ...             1.00     -0.03      0.19
-    <BLANKLINE>
-    [2 rows x 8 columns]
+      Column  Total Non-Null  Total Zero  Zero Percent  Outlier Count  Outlier Percent  Skewness  Kurtosis
+    0      B              98           0           0.0              4             4.08      2.62     10.48
+    1      C             100           0           0.0              1             1.00     -0.03      0.19
     """
     outlier_data = []
 
@@ -558,14 +556,23 @@ def get_unique(
                     plt.show()
 
 
+from typing import List, Dict, Optional
+
 def plot_3d(
         df: pd.DataFrame,
         x: str,
         y: str,
         z: str,
         color: Optional[str] = None,
-        color_map: Optional[List[str]] = 'tab10',
-        scale: str = 'linear'
+        color_discrete_sequence: Optional[List[str]] = None,
+        color_discrete_map: Optional[Dict[str, str]] = None,
+        color_continuous_scale: Optional[List[str]] = None,
+        x_scale: str = 'linear',
+        y_scale: str = 'linear',
+        z_scale: str = 'linear',
+        height: int = 600,
+        width: int = 1000,
+        font_size: int = 10
 ) -> None:
     """
     Create a 3D scatter plot using Plotly Express.
@@ -573,9 +580,13 @@ def plot_3d(
     This function generates an interactive 3D scatter plot using the
     Plotly Express library. It allows for customization of the `x`, `y`, and `z`
     axes, as well as color coding of the points based on the column specified
-    for `color` (similar to the `hue` parameter in Seaborn). A `color_map` can be
-    passed to control the colors used on the plot. The plot can also be displayed
-    with either a linear or logarithmic scale.
+    for `color` (similar to the `hue` parameter in Seaborn). A `color_discrete_map`
+    dictionary can be passed to map specific values of the `color` column to
+    colors. Alternatively, you can just pass a `color_discrete_map` or
+    `color_continuous_scale` depending on the type of values in the `color`
+    column. Onlye 1 of these 3 coloring methods should be used at a time. The plot
+    can also be displayed with either a linear or logarithmic scale on each axis
+    by setting `x_scale`, `y_scale`, or `z_scale` from 'linear' to 'log'.
 
     Use this function to visualize and explore relationships between three
     variables in a dataset, with the option to color code the points based
@@ -595,12 +606,39 @@ def plot_3d(
     color : str, optional
         The column name to be used for color coding the points. Default is
         None.
-    color_map : List[str], optional
-        The color map to be used. If None, the seaborn default color
-        palette will be used. Default is None.
-    scale : str, optional
-        The scale type for the axes. Use 'log' for logarithmic scale.
+    color_discrete_sequence : List[str], optional
+        Strings should define valid CSS-colors. When `color` is set and the values
+        in the corresponding column are not numeric, values in that column are
+        assigned colors by cycling through `color_discrete_sequence` in the order
+        described in `category_orders`. Various color sequences are available in
+        `plotly.express.colors.qualitative`. Default is None.
+    color_discrete_map : Dict[str, str], optional
+        String values should define valid CSS-colors. Used to assign specific
+        colors values in the `color` column. Default is None.
+    color_continuous_scale : List[str], optional
+        Strings should define valid CSS-colors. This list is used to build a
+        continuous color scale when the `color` column contains numeric data.
+        Various color scales are available in `plotly.express.colors.sequential`,
+        `plotly.express.colors.diverging`, and `plotly.express.colors.cyclical`.
+        Default is None.
+    x_scale : str, optional
+        The scale type for the X axis. Use 'log' for logarithmic scale.
         Default is 'linear'.
+    y_scale : str, optional
+        The scale type for the Y axis. Use 'log' for logarithmic scale.
+        Default is 'linear'.
+    z_scale : str, optional
+        The scale type for the Z axis. Use 'log' for logarithmic scale.
+        Default is 'linear'.
+    height : int, optional
+        The height of the plot in pixels.
+        Default is 600.
+    width : int, optional
+        The width of the plot in pixels.
+        Default is 1000.
+    font_size : int, optional
+        The size of the font used in the plot.
+        Default is 10.
 
     Returns
     -------
@@ -616,29 +654,74 @@ def plot_3d(
     ...     'X': [1, 2, 3, 4, 5],
     ...     'Y': [2, 4, 6, 8, 10],
     ...     'Z': [3, 6, 9, 12, 15],
-    ...     'Category': ['A', 'B', 'A', 'B', 'A']
+    ...     'Category': ['A', 'B', 'A', 'B', 'A'],
+    ...     'Continuous': [10, 20, 30, 40, 50]
     ... })
 
     Example 1: Create a basic 3D scatter plot:
 
     >>> plot_3d(df, x='X', y='Y', z='Z')
 
-    Example 2: Create a 3D scatter plot with color coding and log scale:
+    Example 2: Create a 3D scatter plot with default color coding, and log scale
+    on the X axis:
 
-    >>> plot_3d(df, x='X', y='Y', z='Z', color='Category', scale='log')
+    >>> plot_3d(df, x='X', y='Y', z='Z', color='Category', x_scale='log')
+
+    Example 3: Create a 3D scatter plot with a discrete color palette:
+
+    >>> plot_3d(df, x='X', y='Y', z='Z', color='Category',
+    ...         color_discrete_sequence=px.colors.qualitative.Prism)
+
+    Example 4: Create a 3D scatter plot with a continuous color palette:
+
+    >>> plot_3d(df, x='X', y='Y', z='Z', color='Continuous',
+    ...         color_continuous_scale=px.colors.sequential.Viridis)
+
+    Example 5: Create a 3D scatter plot with a custom discrete color map,
+    and adjust the height and width:
+
+    >>> category_color_map = {'A': px.colors.qualitative.D3[0],
+    ...                       'B': px.colors.qualitative.D3[1]}
+    >>> plot_3d(df, x='X', y='Y', z='Z', color='Category',
+    ...         color_discrete_map=category_color_map,
+    ...         height=800, width=1200)
     """
-    # Create the 3D scatter plot using Plotly Express
-    fig = px.scatter_3d(df,
-                        x=x,
-                        y=y,
-                        z=z,
-                        color=color,
-                        color_discrete_map=color_map,
-                        height=600,
-                        width=1000)
-
-    # Set the plot title
-    title_text = f"{x}, {y}, {z} by {color}"
+    # Create the 3D scatter plot and set the title
+    if color is not None:
+        # Handle mappings of values in 'color' column to 'color_discrete_map'
+        if color_discrete_map is not None:
+            fig = px.scatter_3d(df, x=x, y=y, z=z,
+                                color=color,
+                                color_discrete_map=color_discrete_map,
+                                height=height,
+                                width=width)
+        # Handle a discrete color palette
+        elif color_discrete_sequence is not None:
+            fig = px.scatter_3d(df, x=x, y=y, z=z,
+                                color=color,
+                                color_discrete_sequence=color_discrete_sequence,
+                                height=height,
+                                width=width)
+        # Handle a continuous color palette
+        elif color_continuous_scale is not None:
+            fig = px.scatter_3d(df, x=x, y=y, z=z,
+                                color=color,
+                                color_continuous_scale=color_continuous_scale,
+                                height=height,
+                                width=width)
+        # Handle no specified palette
+        else:
+            fig = px.scatter_3d(df, x=x, y=y, z=z,
+                                color=color,
+                                height=height,
+                                width=width)
+        title_text = f"{x}, {y}, {z} by {color}"
+    # No color specified
+    else:
+        fig = px.scatter_3d(df, x=x, y=y, z=z,
+                            height=height,
+                            width=width)
+        title_text = f"{x}, {y}, {z}"
 
     # Adjust the 3D perspective and plot styling
     fig.update_layout(title={'text': title_text, 'y': 0.9, 'x': 0.5,
@@ -652,23 +735,23 @@ def plot_3d(
                                             color='black',
                                             gridcolor='#f0f0f0',
                                             title=x,
-                                            title_font=dict(size=10),
-                                            tickfont=dict(size=10),
-                                            type=scale),
+                                            title_font=dict(size=font_size),
+                                            tickfont=dict(size=font_size),
+                                            type=x_scale),
                                  yaxis=dict(backgroundcolor='white',
                                             color='black',
                                             gridcolor='#f0f0f0',
                                             title=y,
-                                            title_font=dict(size=10),
-                                            tickfont=dict(size=10),
-                                            type=scale),
+                                            title_font=dict(size=font_size),
+                                            tickfont=dict(size=font_size),
+                                            type=y_scale),
                                  zaxis=dict(backgroundcolor='lightgrey',
                                             color='black',
                                             gridcolor='#f0f0f0',
                                             title=z,
-                                            title_font=dict(size=10),
-                                            tickfont=dict(size=10),
-                                            type=scale)))
+                                            title_font=dict(size=font_size),
+                                            tickfont=dict(size=font_size),
+                                            type=z_scale)))
 
     # Update the marker style
     fig.update_traces(marker=dict(size=3, opacity=1,
