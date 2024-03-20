@@ -31,26 +31,37 @@ Functions:
 # Metadata
 __author__ = "Jim Beno"
 __email__ = "jim@jimbeno.net"
-__version__ = "0.1.1"
+__version__ = "0.1.2"
 __license__ = "GNU GPLv3"
 
-# Imports
+# Standard library imports
+import matplotlib.patheffects as pe
+
+# Data manipulation and analysis
 import numpy as np
 import pandas as pd
+from pandas import DataFrame
+import geopandas as gpd
+
+# Visualization libraries
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter
 import seaborn as sns
-from pandas import DataFrame
-from typing import Optional, Union, Tuple, List, Dict
-from scipy.stats import iqr
 import plotly.express as px
-from datawaza.tools import thousands
 
-# Required for geographic mapping
+# Statistical and geographic mapping
+from scipy.stats import iqr
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
-import geopandas as gpd
-import matplotlib.patheffects as pe
+
+# Miscellaneous imports
+from importlib.resources import path
+
+# Local Datawaza helper function imports
+from datawaza.tools import thousands
+
+# Typing imports
+from typing import Optional, Union, Tuple, List, Dict, Any
 
 
 # Functions
@@ -1293,7 +1304,9 @@ def plot_map_ca(
     ax.add_feature(cfeature.STATES)
 
     # Add county boundaries
-    counties = gpd.read_file('data/cb_2018_us_county_5m.shp')
+    # Determine the path to the data file within the package
+    with path('datawaza.data', 'cb_2018_us_county_5m.shp') as data_path:
+        counties = gpd.read_file(str(data_path))
     counties_ca = counties[counties['STATEFP'] == '06']
     counties_ca = counties_ca.to_crs("EPSG:4326")
     for geometry in counties_ca['geometry']:

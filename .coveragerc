@@ -1,0 +1,16 @@
+[run]
+source = 
+    datawaza
+omit =
+    */tests/*
+    datawaza/__init__.py
+    setup.py
+
+[report]
+show_missing = True
+
+[html]
+directory = test_reports/coverage_html
+
+[doctest]
+doctest_source = true

@@ -1,0 +1,11 @@
+# Coverage reports
+.coverage
+htmlcov/
+coverage.xml
+test_reports/
+
+# Other files and directories to ignore
+__pycache__/
+*.pyc
+.DS_Store
+.idea/

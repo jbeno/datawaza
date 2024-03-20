@@ -29,15 +29,19 @@ Functions:
 # Metadata
 __author__ = "Jim Beno"
 __email__ = "jim@jimbeno.net"
-__version__ = "0.1.1"
+__version__ = "0.1.2"
 __license__ = "GNU GPLv3"
 
-# Imports
+# Standard library imports
+import re
+
+# Data manipulation and analysis
 import numpy as np
 import pandas as pd
 from pandas import DataFrame
-from typing import Optional, Union, Tuple, List, Dict
-import re
+
+# Typing imports
+from typing import Optional, Union, Tuple, List, Dict, Any
 
 
 # Functions

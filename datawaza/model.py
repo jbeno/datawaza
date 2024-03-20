@@ -26,7 +26,7 @@ Functions:
 # Metadata
 __author__ = "Jim Beno"
 __email__ = "jim@jimbeno.net"
-__version__ = "0.1.1"
+__version__ = "0.1.2"
 __license__ = "GNU GPLv3"
 
 # Standard library imports
@@ -63,11 +63,14 @@ from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 # Other third-party libraries for machine learning
 from category_encoders import JamesSteinEncoder
 
+# Miscellaneous imports
+from joblib import dump
+
 # Local Datawaza helper function imports
 from datawaza.tools import calc_pfi, calc_vif, extract_coef, log_transform, thousands
 
-# Miscellaneous imports
-from joblib import dump
+# Typing imports
+from typing import Optional, Union, Tuple, List, Dict, Any
 
 
 # Functions

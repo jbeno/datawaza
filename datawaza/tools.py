@@ -40,23 +40,31 @@ Functions:
 # Metadata
 __author__ = "Jim Beno"
 __email__ = "jim@jimbeno.net"
-__version__ = "0.1.1"
+__version__ = "0.1.2"
 __license__ = "GNU GPLv3"
 
-# Imports
+# Standard library imports
+import inspect
+
+# Data manipulation and analysis
 import numpy as np
 import pandas as pd
+
+# Visualization libraries
 import matplotlib.pyplot as plt
 import seaborn as sns
-from typing import Optional, Union, Tuple, List, Dict, Any
-import inspect
+
+# Machine Learning: Model selection and evaluation
 from sklearn.model_selection import GridSearchCV
-from sklearn.pipeline import Pipeline
-from sklearn.datasets import load_iris
 from sklearn.inspection import permutation_importance
+
+# Machine Learning: Pipeline and transformations
+from sklearn.pipeline import Pipeline
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.compose import ColumnTransformer
 from sklearn.preprocessing import StandardScaler
+
+# Machine Learning: Models
 from sklearn.linear_model import (
     LogisticRegression, LogisticRegressionCV, PassiveAggressiveClassifier,
     Perceptron, RidgeClassifier, RidgeClassifierCV, SGDClassifier, SGDOneClassSVM,
@@ -66,6 +74,9 @@ from sklearn.linear_model import (
     BayesianRidge, HuberRegressor, QuantileRegressor, RANSACRegressor,
     TheilSenRegressor
 )
+
+# Typing imports
+from typing import Optional, Union, Tuple, List, Dict, Any
 
 
 # Functions
