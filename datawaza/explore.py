@@ -31,7 +31,7 @@ Functions:
 # Metadata
 __author__ = "Jim Beno"
 __email__ = "jim@jimbeno.net"
-__version__ = "0.1.2"
+__version__ = "0.1.3"
 __license__ = "GNU GPLv3"
 
 # Standard library imports
@@ -54,8 +54,12 @@ from scipy.stats import iqr
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 
-# Miscellaneous imports
-from importlib.resources import path
+# Package / file handling imports
+import sys
+if sys.version_info >= (3, 10):
+    from importlib.resources import files, as_file
+else:
+    from importlib_resources import files
 
 # Local Datawaza helper function imports
 from datawaza.tools import thousands
@@ -1305,8 +1309,16 @@ def plot_map_ca(
 
     # Add county boundaries
     # Determine the path to the data file within the package
-    with path('datawaza.data', 'cb_2018_us_county_5m.shp') as data_path:
+
+    if sys.version_info >= (3, 10):
+        # Python 3.10 or higher
+        with as_file(files('datawaza.data') / 'cb_2018_us_county_5m.shp') as data_path:
+            counties = gpd.read_file(data_path)
+    else:
+        # Python 3.9 or lower
+        data_path = files('datawaza.data') / 'cb_2018_us_county_5m.shp'
         counties = gpd.read_file(str(data_path))
+
     counties_ca = counties[counties['STATEFP'] == '06']
     counties_ca = counties_ca.to_crs("EPSG:4326")
     for geometry in counties_ca['geometry']:

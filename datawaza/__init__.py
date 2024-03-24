@@ -30,7 +30,7 @@ Modules:
 # Metadata
 __author__ = "Jim Beno"
 __email__ = "jim@jimbeno.net"
-__version__ = "0.1.2"
+__version__ = "0.1.3"
 __license__ = "GNU GPLv3"
 
 from .explore import (get_outliers,
@@ -58,7 +58,10 @@ from .tools import (calc_pfi,
                     thousands,
                     LogTransformer)
 
-from .model import (create_pipeline,
+from .model import (compare_models,
+                    create_pipeline,
                     create_results_df,
+                    eval_model,
                     iterate_model,
+                    plot_acf_residuals,
                     plot_results)

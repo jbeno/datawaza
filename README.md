@@ -30,9 +30,18 @@ Datawaza streamlines common Data Science tasks. It's a collection of tools for d
 Installation
 ------------
 
-The latest release can be found on [PyPI](https://pypi.org/project/datawaza/). See the [Change Log](CHANGELOG.md) for a history of changes. Install Datawaza with pip:
+The latest release can be found on [PyPI](https://pypi.org/project/datawaza/). Install Datawaza with pip:
 
     pip install datawaza
+
+See the [Change Log](CHANGELOG.md) for a history of changes.
+
+Dependencies
+------------
+
+Datawaza supports Python 3.9 - 3.12. Because Cartopy does not support Python 3.8, and that's a dependency for `plot_map_ca`, 3.8 is not supported.
+
+Installation requires NumPy, Pandas, Matplotlib, Seaborn, Plotly, Scikit-Learn, SciPy, Cartopy, GeoPandas, StatsModels, and a few other supporting packages. See the [Requirements.txt](https://github.com/jbeno/datawaza/blob/main/requirements.txt).
 
 Documentation
 -------------
@@ -46,14 +55,7 @@ Development
 
 The [Datawaza repo](https://github.com/jbeno/datawaza) is on GitHub.
 
-Please submit bugs that you encounter to the [Issue Tracker](https://github.com/jbeno/datawaza/issues). Contributions and ideas for enhancements are welcome! So far this is a solo effort, but I would love to collaborate.
-
-Dependencies
-------------
-
-Datawaza supports Python 3.10. It may support other versions, but these have not been tested yet.
-
-Due to the breadth of use cases, installation requires NumPy, Pandas, Matplotlib, Seaborn, Plotly, Scikit-Learn, SciPy, Cartopy, GeoPandas, StatsModels, and a few other supporting packages. See the [Requirements.txt](https://github.com/jbeno/datawaza/blob/main/requirements.txt).
+Please submit bugs that you encounter to the [Issue Tracker](https://github.com/jbeno/datawaza/issues). Contributions and ideas for enhancements are welcome!
 
 What is Waza?
 -------------
@@ -63,7 +65,7 @@ Waza (技) means "technique" in Japanese. In martial arts like Aikido, it is pai
 Origin Story
 -------------
 
-Most of these functions were created while I was pursuing a [Professional Certificate in Machine Learning & Artificial Intelligence](https://em-executive.berkeley.edu/professional-certificate-machine-learning-artificial-intelligence) from U.C. Berkeley. With every assignment, I tried to simplify repetitive tasks and streamline my workflow. They served me well, and I hope you will find some value in them.
+Most of these functions were created while I was pursuing a [Professional Certificate](https://em-executive.berkeley.edu/professional-certificate-machine-learning-artificial-intelligence) in Machine Learning & Artificial Intelligence from U.C. Berkeley. With each assignment, I tried to simplify repetitive tasks and streamline my workflow. They served me well at the time, so perhaps they will be of value to others.
 
 Quick Start
 -----------
@@ -102,7 +104,7 @@ Show the unique values of each variable below the threshold of n = 12:
 
 Plot bar charts of categorical variables, dimensioned by the target variable:
 
-    >>> dw.plot_charts(df, plot_type='cat', cat_cols=cat_columns, hue='y', rotation=90)
+    >>> dw.plot_charts(df, plot_type='cat', cat_cols=cat_columns, rotation=90)
 
 ![plot_charts output](https://www.datawaza.com/en/latest/_static/plot_charts_output.png)
 
@@ -111,7 +113,7 @@ Get the top positive and negative correlations with the target variable, and sav
     >>> pos_features, neg_features = dw.get_corr(df_enc, n=10, var='subscribed_enc', return_arrays=True)
 
     Top 10 positive correlations:
-    Variable 1      Variable 2  Correlation
+                  Variable 1      Variable 2  Correlation
     0               duration  subscribed_enc         0.41
     1       poutcome_success  subscribed_enc         0.32
     2   previously_contacted  subscribed_enc         0.32
@@ -124,7 +126,7 @@ Get the top positive and negative correlations with the target variable, and sav
     9            job_student  subscribed_enc         0.09
     
     Top 10 negative correlations:
-    Variable 1      Variable 2  Correlation
+                  Variable 1      Variable 2  Correlation
     0            nr.employed  subscribed_enc        -0.35
     1              euribor3m  subscribed_enc        -0.31
     2           emp.var.rate  subscribed_enc        -0.30

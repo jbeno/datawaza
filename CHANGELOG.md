@@ -2,7 +2,25 @@
 
 All notable changes to the Datawaza project will be documented in this file.
 
-## [0.1.0] - 2024-03-19
+## [0.1.3] - UNPUBLISHED
+
+### Added
+- Model module (model.py):
+  - compare_models() - Find the best classification model and hyper-parameters for a dataset.
+  - eval_model() - Produce a detailed evaluation report for a classification model.
+  - plot_acf_residuals() - Plot residuals, histogram, ACF, and PACF of a time series ARIMA model.
+
+### Changed
+- Package configuration
+  - setup.py - Support for Python 3.9 - 3.12, modified requirements, separate [doc] and [test] tags.
+  - Additional dependencies: importlib_resources, scikeras, xgboost, imbalanced-learn
+- Explore module (explore.py):
+  - plot_map_ca - Detect Python version. To get path to package 'data' directory that stores map files, use importlib.resources for >= 3.10, otherwise importlib_resources
+- Model module (model.py):
+  - iterate_model() - Added ability to do Random Grid Search.
+- Minor bug fixes
+
+## [0.1.2] - 2024-03-19
 
 First pre-release to test package installation.
 

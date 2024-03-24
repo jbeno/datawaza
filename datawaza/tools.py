@@ -40,7 +40,7 @@ Functions:
 # Metadata
 __author__ = "Jim Beno"
 __email__ = "jim@jimbeno.net"
-__version__ = "0.1.2"
+__version__ = "0.1.3"
 __license__ = "GNU GPLv3"
 
 # Standard library imports
@@ -650,6 +650,7 @@ def extract_coef(
 
     return final_data
 
+
 def format_df(
         df: pd.DataFrame,
         large_num_cols: Optional[List[str]] = None,
@@ -727,13 +728,15 @@ def format_df(
     3  10,959,013,409  0.4567  X
     4   3,522,343,059  0.5678  Y
     """
+    # Function to format a column
     def format_columns(val, col_type):
+        # Check if value is NaN or not a numeric type; return as is if true
+        if pd.isna(val) or not isinstance(val, (int, float)):
+            return val
         if col_type == "large":
             return '{:,.0f}'.format(val)
         elif col_type == "small":
             return f'{{:,.{decimal}f}}'.format(val)
-        else:
-            return val
 
     # Create a copy of the input DataFrame to avoid modifying the original
     formatted_df = df.copy()
@@ -994,7 +997,7 @@ def thousand_dollars(
     >>> plt.xlabel('Total Rooms', fontsize=14, labelpad=10)  # doctest: +SKIP
     >>> plt.ylabel('Median House Value', fontsize=14)  # doctest: +SKIP
     >>> plt.gca().yaxis.set_major_formatter(FuncFormatter(thousand_dollars))
-    >>> plt.show()  # Displays the plot (visual output not shown)
+    >>> plt.show()  # Displays the plot (visual output not shown)  # doctest: +SKIP
     """
     s = '${:0,d}'.format(int(x))
     return s
@@ -1058,7 +1061,7 @@ def thousands(
     >>> plt.xlabel('Total Rooms', fontsize=14, labelpad=10)  # doctest: +SKIP
     >>> plt.ylabel('Median House Value', fontsize=14)  # doctest: +SKIP
     >>> plt.gca().xaxis.set_major_formatter(FuncFormatter(thousands))
-    >>> plt.show()  # Displays the plot (visual output not shown)
+    >>> plt.show()  # Displays the plot (visual output not shown)  # doctest: +SKIP
     """
     s = '{:0,d}'.format(int(x))
     return s

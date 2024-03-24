@@ -21,7 +21,7 @@ project = 'Datawaza'
 copyright = '2024, Jim Beno'
 author = 'Jim Beno'
 version = '0.1'
-release = '0.1.2'
+release = '0.1.3'
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
