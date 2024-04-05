@@ -18,6 +18,8 @@ functions to set up pipelines, iterate over models, and evaluate and plot result
 
 Functions:
     - :func:`~datawaza.model.compare_models` - Find the best classification model and hyper-parameters for a dataset.
+    - :func:`~datawaza.model.create_nn_binary` - Create a binary classification neural network model.
+    - :func:`~datawaza.model.create_nn_multi` - Create a multi-class classification neural network model.
     - :func:`~datawaza.model.create_pipeline` - Create a custom pipeline for data preprocessing and modeling.
     - :func:`~datawaza.model.create_results_df` - Initialize the results_df DataFrame with the columns required for `iterate_model`.
     - :func:`~datawaza.model.eval_model` - Produce a detailed evaluation report for a classification model.
@@ -56,7 +58,7 @@ from sklearn.feature_selection import RFE, SequentialFeatureSelector
 from sklearn.impute import KNNImputer, SimpleImputer
 from sklearn.linear_model import (Lasso, LinearRegression, LogisticRegression, Ridge)
 from sklearn.metrics import (mean_absolute_error, mean_squared_error, confusion_matrix, classification_report,
-                             ConfusionMatrixDisplay, RocCurveDisplay, roc_curve, precision_recall_curve,
+                             ConfusionMatrixDisplay, RocCurveDisplay, roc_curve, precision_recall_curve, PrecisionRecallDisplay,
                              roc_auc_score, make_scorer, precision_score, recall_score, f1_score, accuracy_score)
 from sklearn.model_selection import GridSearchCV, RandomizedSearchCV, KFold, cross_val_score, train_test_split
 from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
@@ -80,7 +82,7 @@ from imblearn.under_sampling import RandomUnderSampler
 from joblib import dump
 
 # Local Datawaza helper function imports
-from datawaza.tools import calc_pfi, calc_vif, extract_coef, log_transform, thousands
+from datawaza.tools import calc_pfi, calc_vif, extract_coef, log_transform, thousands, DebugPrinter
 
 # Typing imports
 from typing import Optional, Union, Tuple, List, Dict, Any
@@ -88,31 +90,31 @@ from typing import Optional, Union, Tuple, List, Dict, Any
 # TensorFlow and Keras
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Suppress TensorFlow warning on import
 import tensorflow as tf
-from scikeras.wrappers import KerasClassifier
-
+from tensorflow import keras
+from tensorflow.keras.layers import Dense, Dropout
+from tensorflow.keras.regularizers import l2
 
 # Functions
 def compare_models(
-        X: pd.DataFrame,
+        x: pd.DataFrame,
         y: pd.Series,
+        models: List[str],
+        config: Dict[str, Any],
+        class_map: Optional[Dict[Any, Any]] = None,
+        pos_label: Optional[Any] = None,
         test_size: float = 0.25,
-        model_list: Optional[List[Any]] = None,
         search_type: str = 'grid',
-        grid_params: Optional[Dict[str, Any]] = None,
-        cv_folds: int = 5,
-        ohe_columns: Optional[List[str]] = None,
-        drop: str = 'if_binary',
+        grid_cv: Union[int, str] = 5,
         plot_perf: bool = False,
         scorer: str = 'accuracy',
-        neg_display: str = 'Class 0',
-        pos_display: str = 'Class 1',
-        pos_label: Any = 1,
         random_state: int = 42,
         decimal: int = 4,
         verbose: int = 4,
         title: Optional[str] = None,
         fig_size: Tuple[int, int] = (12, 6),
         figmulti: float = 1.5,
+        multi_class: str = 'ovr',
+        average: str = None,
         legend_loc: str = 'best',
         model_eval: bool = False,
         svm_proba: bool = False,
@@ -124,7 +126,6 @@ def compare_models(
         transformers: Optional[List[str]] = None,
         scaler: Optional[str] = None,
         selector: Optional[str] = None,
-        config: Optional[Dict[str, Any]] = None,
         cat_columns: Optional[List[str]] = None,
         num_columns: Optional[List[str]] = None,
         max_iter: int = 10000,
@@ -146,118 +147,92 @@ def compare_models(
 
     This function integrates a number of steps in a typical classification model
     workflow, and it does this for multiple models, all with one command line:
-    (1) Auto-detecting single vs. multi-class classification problems, (2) Option
-    to Under-sample or Over-smple imbalanced data, (3) Option to use a sub-sample
-    of data for SVC or KNN, which can be computation intense, (3) Ability to split
-    the Train/Test data at a specified ratio, (4) Creation of a multiple-step
-    Pipeline, including Imputation, multiple Column Transformer/Encoding steps,
-    Scaling, Feature selection, and the Model, (5) Grid Search of hyper-parameters,
-    either full or random, (6) Calculating performance metrics from the standard
-    Classification Report (Accuracy, Precision, Recall, F1) but also with ROC AUC,
-    and if binary, True Positive Rate, True Negative Rate, False Positive Rate,
-    False Negative Rate, (7) Evaluating this performance based on a customizable
-    Threshold, (8) Visually showing performance by plotting (a) a Confusion
-    Matrix, and if binary, (b) a Histogram of Predicted Probabilities, (c) an ROC
-    Curve, and (d) a Precision-Recall Curve. (9) Save all the results in a
-    DataFrame for reference and comparison, and (10) Option to plot the results to
-    visually compare performance of the specified metric across multiple model
-    pipelines with their best parameters.
+
+    * Auto-detecting single vs. multi-class classification problems
+    * Option to Under-sample or Over-smple imbalanced data,
+    * Option to use a sub-sample of data for SVC or KNN, which can be computation
+      intense
+    * Ability to split the Train/Test data at a specified ratio,
+    * Creation of a multiple-step Pipeline, including Imputation, multiple Column
+      Transformer/Encoding steps, Scaling, Feature selection, and the Model,
+    * Grid Search of hyper-parameters, either full or random,
+    * Calculating performance metrics from the standard Classification Report
+      (Accuracy, Precision, Recall, F1) but also with ROC AUC, and if binary, True
+      Positive Rate, True Negative Rate, False Positive Rate, False Negative Rate,
+    * Evaluating this performance based on a customizable Threshold,
+    * Visually showing performance by plotting (a) a Confusion Matrix, and if
+      binary, (b) a Histogram of Predicted Probabilities, (c) an ROC Curve, and
+      (d) a Precision-Recall Curve.
+    * Save all the results in a DataFrame for reference and comparison, and
+    * Option to plot the results to visually compare performance of the specified
+      metric across multiple model pipelines with their best parameters.
 
     To use this function, a configuration should be created that defines the
-    desired model configurations and parameters you want to search. In the
-    current version, `compare_models` supports the following models:
-
-    - 'logreg' : LogisticRegression
-    - 'tree_class' : DecisionTreeClassifier
-    - 'knn_class' : KNeighborsClassifier
-    - 'svm_class' : SVC
-    - 'svm_proba' : SVC (with probability=True)
-    - 'forest_class' : RandomForestClassifier
-    - 'vot_class' : VotingClassifier
-    - 'bag_class' : BaggingClassifier
-    - 'boost_class' : GradientBoostingClassifier
-    - 'ada_class' : AdaBoostClassifier
-    - 'xgb_class' : XGBClassifier
-    - 'keras_class' : KerasClassifier
-
-    Specify the models you want to run and compare by adding their class names to a
-    list, ex: `models = [LogisticRegression, DecisionTreeClassifier]`. Then pass
-    this list as the value of the `model_list` parameter: `model_list = models`.
-    You will need to use the text strings  in your configuration file, so it's
-    important to note the above pairings.
-
-    When `compare_models` is run, for each model in the `model_list`, the
+    desired model configurations and parameters you want to search.
+    When `compare_models` is run, for each model in the `models` parameter, the
     `create_pipeline` function will be called to create a pipeline from the
     specified parameters. Each model iteration will have the same pipeline
-    construction, except for the final model:
+    construction, except for the final model, which will vary. Here are the major
+    pipeline parameters, along with the config sections they map to:
 
-    * `imputer_key` (str) is selected from `config['imputers']`
-    * `transformer_keys` (list or str) are selected from `config['transformers']`
-    * `scaler_key` (str) is selected from `config['scalers']`
-    * `selector_key` (str) is selected from `config['selectors']`
-    * `config['no_scale']` lists model keys that should not be scaled.
-    * `config['no_poly']` lists models that should not be polynomial transformed.
-
-    Note that unlike the `iterate_model` or `create_pipeline` functions, you do
-    not specify the `model_key` (str), which is selected from `config['models']`.
-    Instead, the `model_list` is how you specify multiple models at once.
+    * `imputer` (str) is selected from `config['imputers']`
+    * `transformers` (list or str) are selected from `config['transformers']`
+    * `scaler` (str) is selected from `config['scalers']`
+    * `selector` (str) is selected from `config['selectors']`
+    * `models` (list or str) are selected from `config['models']`
 
     Here is an example of the configuration dictionary structure. It is based on
     what `create_pipeline` requires to assemble the pipeline. But it adds some
-    additional configuration parameters only required by `iterate_model`, which
-    are `params` (grid search parameters) and `cv` (cross-validation parameters):
+    additional configuration parameters referenced by `compare_models`, which
+    are `params` (grid search parameters, required) and `cv` (cross-validation
+    parameters, optional if `grid_cv` is an integer). The configuration dictionary
+    is passed to `compare_models` as the `config` parameter:
 
     >>> config = {  # doctest: +SKIP
+    ...     'models' : {
+    ...         'logreg': LogisticRegression(max_iter=max_iter,
+    ...                   random_state=random_state, class_weight=class_weight),
+    ...         'knn_class': KNeighborsClassifier(),
+    ...         'tree_class': DecisionTreeClassifier(random_state=random_state,
+    ...                       class_weight=class_weight)
+    ...     },
     ...     'imputers': {
-    ...         'knn_imputer': KNNImputer().set_output(transform='pandas'),
     ...         'simple_imputer': SimpleImputer()
     ...     },
     ...     'transformers': {
     ...         'ohe': (OneHotEncoder(drop='if_binary', handle_unknown='ignore'),
-    ...                 cat_columns),
-    ...         'ord': (OrdinalEncoder(), cat_columns),
-    ...         'poly2': (PolynomialFeatures(degree=2, include_bias=False),
-    ...                   num_columns),
-    ...         'log': (FunctionTransformer(np.log1p, validate=True),
-    ...                 num_columns)
+    ...                     ohe_columns)
     ...     },
     ...     'scalers': {
-    ...         'stand': StandardScaler(),
-    ...         'minmax': MinMaxScaler()
+    ...         'stand': StandardScaler()
     ...     },
     ...     'selectors': {
-    ...         'rfe_logreg': RFE(LogisticRegression(max_iter=max_iter,
-    ...                                         random_state=random_state,
-    ...                                         class_weight=class_weight)),
-    ...         'sfs_linreg': SequentialFeatureSelector(LinearRegression())
+    ...         'sfs_logreg': SequentialFeatureSelector(LogisticRegression(
+    ...                       max_iter=max_iter, random_state=random_state,
+    ...                       class_weight=class_weight))
     ...     },
-    ...     'models': {
-    ...         'linreg': LinearRegression(),
-    ...         'logreg': LogisticRegression(max_iter=max_iter,
-    ...                                      random_state=random_state,
-    ...                                      class_weight=class_weight),
-    ...         'tree_class': DecisionTreeClassifier(random_state=random_state),
-    ...         'tree_reg': DecisionTreeRegressor(random_state=random_state)
-    ...     },
-    ...     'no_scale': ['tree_class', 'tree_reg'],
-    ...     'no_poly': ['tree_class', 'tree_reg'],
-    ...     'params': {
-    ...         'sfs': {
-    ...             'Selector: sfs__n_features_to_select': np.arange(3, 13, 1),
+    ...     'params' : {
+    ...         'logreg': {
+    ...             'logreg__C': [0.0001, 0.001, 0.01, 0.1, 1, 10, 100],
+    ...             'logreg__solver': ['newton-cg', 'lbfgs', 'saga']
     ...         },
-    ...         'linreg': {
-    ...             'Model: linreg__fit_intercept': [True],
+    ...         'knn_class': {
+    ...             'knn_class__n_neighbors': [3, 5, 10, 15, 20, 25],
+    ...             'knn_class__weights': ['uniform', 'distance'],
+    ...             'knn_class__metric': ['euclidean', 'manhattan']
     ...         },
-    ...         'ridge': {
-    ...             'Model: ridge__alpha': np.array([0.001, 0.1, 1, 10, 100, 1000, 10000, 100000]),
-    ...         }
+    ...         'tree_class': {
+    ...             'tree_class__max_depth': [3, 5, 7],
+    ...             'tree_class__min_samples_split': [5, 10, 15],
+    ...             'tree_class__criterion': ['gini', 'entropy'],
+    ...             'tree_class__min_samples_leaf': [2, 4, 6]
+    ...         },
     ...     },
     ...     'cv': {
-    ...         'kfold_5': KFold(n_splits=5, shuffle=True, random_state=42),
-    ...         'kfold_10': KFold(n_splits=10, shuffle=True, random_state=42),
-    ...         'skf_5': StratifiedKFold(n_splits=5, shuffle=True, random_state=42),
-    ...         'skf_10': StratifiedKFold(n_splits=10, shuffle=True, random_state=42)
-    ...     }
+    ...         'kfold_5': KFold(n_splits=5, shuffle=True, random_state=42)
+    ...     },
+    ...     'no_scale': ['tree_class'],
+    ...     'no_poly': ['knn_class', 'tree_class']
     ... }
 
     In addition to the configuration file, you will need to define any column
@@ -265,7 +240,31 @@ def compare_models(
     For example, you might define a 'ohe' transformer for One-Hot Encoding, and
     reference 'ohe_columns' or 'cat_columns' in its definition in the config.
 
-    
+    Here is an example of how to call this function in an organized manner:
+
+    >>> results_df = dw.compare_models(  # doctest: +SKIP
+    ...
+    ...     # Data split and sampling
+    ...     x=X, y=y, test_size=0.25, stratify=None, under_sample=None,
+    ...     over_sample=None, svm_knn_resample=None,
+    ...
+    ...     # Models and pipeline steps
+    ...     imputer=None, transformers=None, scaler='stand', selector=None,
+    ...     models=['logreg', 'knn_class', 'svm_proba', 'tree_class',
+    ...     'forest_class', 'xgb_class', 'keras_class'], svm_proba=True,
+    ...
+    ...     # Grid search
+    ...     search_type='random', scorer='accuracy', grid_cv='kfold_5', verbose=4,
+    ...
+    ...     # Model evaluation and charts
+    ...     model_eval=True, plot_perf=True, plot_curve=True, fig_size=(12,6),
+    ...     legend_loc='lower left', rotation=45, threshold=0.5,
+    ...     class_map=class_map, pos_label=1, title='Breast Cancer',
+    ...
+    ...     # Config, preferences and notes
+    ...     config=my_config, class_weight=None, random_state=42, decimal=4,
+    ...     n_jobs=None, debug=False, notes='Test Size=0.25, Threshold=0.50'
+    ... )
 
     Use this function when you want to find the best classification model and
     hyper-parameters for a dataset, after doing any required pre-processing or
@@ -274,32 +273,32 @@ def compare_models(
 
     Parameters
     ----------
-    X : pd.DataFrame
+    x : pd.DataFrame
         The feature matrix.
     y : pd.Series
         The target vector.
     test_size : float, optional (default=0.25)
         The proportion of the dataset to include in the test split.
-    model_list : List[Any], optional (default=None)
-        A list of models to compare. If None, a ValueError is raised.
+    models : List[str]
+        A list of model names to iterate over.
+    config : Dict[str, Any]
+        A configuration dictionary that defines the pipeline steps, models,
+        grid search parameters, and cross-validation functions. It should have
+        the following keys: 'imputers', 'transformers', 'scalers', 'selectors',
+        'models', 'params', 'cv', 'no_scale', and 'no_poly'.
+    class_map : Dict[Any, Any], optional (default=None)
+        A dictionary to map class labels to new values.
     search_type : str, optional (default='grid')
         The type of hyperparameter search to perform. Can be either 'grid'
         for GridSearchCV or 'random' for RandomizedSearchCV.
-    grid_params : Dict[str, Any], optional (default=None)
-        A dictionary of hyperparameter grids for each model. If None, a
-        ValueError is raised.
-    cv_folds : int, optional (default=5)
-        The number of folds for cross-validation.
-    ohe_columns : List[str], optional (default=None)
-        A list of categorical columns to one-hot encode.
-    drop : str, optional (default='if_binary')
-        The drop strategy for one-hot encoding.
+    grid_cv : Union[int, str], optional (default=5)
+        The number of cross-validation folds for GridSearchCV or
+        RandomizedSearchCV, or a string to select a cross-validation
+        function from config['cv']. Default is 5.
     plot_perf : bool, optional (default=False)
         Whether to plot the model performance.
     scorer : str, optional (default='accuracy')
         The scorer to use for model evaluation.
-    neg_label : Any, optional (default=None)
-        The negative class label.
     pos_label : Any, optional (default=None)
         The positive class label.
     random_state : int, optional (default=42)
@@ -314,6 +313,14 @@ def compare_models(
         The figure size for the plots.
     figmulti : float, optional (default=1.5)
         The multiplier for the figure size in multi-class classification.
+    multi_class : str, optional
+        The method for handling multi-class ROC AUC calculation.
+        Can be 'ovr' (one-vs-rest) or 'ovo' (one-vs-one).
+        Default is 'ovr'.
+    average : str, optional
+        The averaging method for multi-class classification metrics.
+        Can be 'macro', 'micro', 'weighted', or 'samples'.
+        Default is 'macro'.
     legend_loc : str, optional (default='best')
         The location of the legend in the plots.
     model_eval : bool, optional (default=False)
@@ -379,192 +386,351 @@ def compare_models(
 
     >>> pd.set_option('display.max_columns', None)  # For test consistency
     >>> pd.set_option('display.width', None)  # For test consistency
-    >>> from sklearn.datasets import load_iris
-    >>> X, y = load_iris(return_X_y=True)
-    >>> X = pd.DataFrame(X, columns=['sepal_length', 'sepal_width',
-    ...                               'petal_length', 'petal_width'])
-    >>> y = pd.Series(y)
+    >>> from sklearn.datasets import make_classification
+    >>> X, y = make_classification(n_samples=1000, n_classes=2, n_features=20,
+    ...                            weights=[0.4, 0.6], random_state=42)
+    >>> X = pd.DataFrame(X, columns=[f'Feature_{i+1}' for i in range(X.shape[1])])
+    >>> y = pd.Series(y, name='Target')
+    >>> class_map = {0: 'Malignant', 1: 'Benign'}
+
+    Example 1: Define the configuration for the models:
+
+    >>> # Set some variables referenced in the config
+    >>> random_state = 42
+    >>> class_weight = None
+    >>> max_iter = 10000
+    >>>
+    >>> # Set column lists referenced in the config
     >>> num_columns = list(X.columns)
     >>> cat_columns = []
+    >>>
+    >>> # Create a custom configuration file with 3 models and grid search params
+    >>> my_config = {
+    ...     'models' : {
+    ...         'logreg': LogisticRegression(max_iter=max_iter,
+    ...                   random_state=random_state, class_weight=class_weight),
+    ...         'knn_class': KNeighborsClassifier(),
+    ...         'tree_class': DecisionTreeClassifier(random_state=random_state,
+    ...                       class_weight=class_weight)
+    ...     },
+    ...     'imputers': {
+    ...         'simple_imputer': SimpleImputer()
+    ...     },
+    ...     'transformers': {
+    ...         'ohe': (OneHotEncoder(drop='if_binary', handle_unknown='ignore'),
+    ...                     cat_columns)
+    ...     },
+    ...     'scalers': {
+    ...         'stand': StandardScaler()
+    ...     },
+    ...     'selectors': {
+    ...         'sfs_logreg': SequentialFeatureSelector(LogisticRegression(
+    ...                       max_iter=max_iter, random_state=random_state,
+    ...                       class_weight=class_weight))
+    ...     },
+    ...     'params' : {
+    ...         'logreg': {
+    ...             'logreg__C': [0.0001, 0.001, 0.01, 0.1, 1, 10, 100],
+    ...             'logreg__solver': ['newton-cg', 'lbfgs', 'saga']
+    ...         },
+    ...         'knn_class': {
+    ...             'knn_class__n_neighbors': [3, 5, 10, 15, 20, 25],
+    ...             'knn_class__weights': ['uniform', 'distance'],
+    ...             'knn_class__metric': ['euclidean', 'manhattan']
+    ...         },
+    ...         'tree_class': {
+    ...             'tree_class__max_depth': [3, 5, 7],
+    ...             'tree_class__min_samples_split': [5, 10, 15],
+    ...             'tree_class__criterion': ['gini', 'entropy'],
+    ...             'tree_class__min_samples_leaf': [2, 4, 6]
+    ...         },
+    ...     },
+    ...     'cv': {
+    ...         'kfold_5': KFold(n_splits=5, shuffle=True, random_state=42)
+    ...     },
+    ...     'no_scale': ['tree_class'],
+    ...     'no_poly': ['knn_class', 'tree_class']
+    ... }
 
     Example 1: Compare models with default parameters:
 
-    >>> model_list = [LogisticRegression, DecisionTreeClassifier]
-    >>> grid_params = {
-    ...     'logreg': {
-    ...         'logreg__C': [0.0001, 0.001, 0.01, 0.1, 1, 10, 100],
-    ...         'logreg__solver': ['newton-cg', 'lbfgs', 'saga']
-    ...     },
-    ...     'tree_class': {
-    ...         'tree_class__max_depth': [3, 5, 7],
-    ...         'tree_class__min_samples_split': [5, 10, 15],
-    ...         'tree_class__criterion': ['gini', 'entropy'],
-    ...         'tree_class__min_samples_leaf': [2, 4, 6]
-    ...         },
-    ... }
-    >>> results_df = compare_models(X, y, model_list=model_list, show_time=False,
-    ...                  grid_params=grid_params, verbose=1,
-    ...                  num_columns=num_columns,
-    ...                  cat_columns=cat_columns)  #doctest: +NORMALIZE_WHITESPACE
+    >>> results_df = compare_models(
+    ...
+    ...     # Data split and sampling
+    ...     x=X, y=y, test_size=0.25, stratify=None, under_sample=None,
+    ...     over_sample=None, svm_knn_resample=None,
+    ...
+    ...     # Models and pipeline steps
+    ...     imputer=None, transformers=None, scaler='stand', selector=None,
+    ...     models=['logreg', 'knn_class', 'tree_class'], svm_proba=True,
+    ...
+    ...     # Grid search
+    ...     search_type='random', scorer='accuracy', grid_cv='kfold_5', verbose=1,
+    ...
+    ...     # Model evaluation and charts
+    ...     model_eval=True, plot_perf=True, plot_curve=True, fig_size=(12,6),
+    ...     legend_loc='lower left', rotation=45, threshold=0.5,
+    ...     class_map=class_map, pos_label=1, title='Breast Cancer',
+    ...
+    ...     # Config, preferences and notes
+    ...     config=my_config, class_weight=None, random_state=42, decimal=2,
+    ...     n_jobs=None, notes='Test Size=0.25, Threshold=0.50',
+    ...     show_time=False
+    ... )  #doctest: +NORMALIZE_WHITESPACE
     <BLANKLINE>
     -----------------------------------------------------------------------------------------
     Starting Data Processing -
     -----------------------------------------------------------------------------------------
     <BLANKLINE>
-    Classification type detected: multi
-    Unique values in y: [0 1 2]
-    y data type after conversion: int64
+    Classification type detected: binary
+    Unique values in y: [0 1]
     <BLANKLINE>
     Train/Test split, test_size:  0.25
-    X_train, X_test, y_train, y_test shapes:  (112, 4) (38, 4) (112,) (38,)
+    X_train, X_test, y_train, y_test shapes:  (750, 20) (250, 20) (750,) (250,)
     <BLANKLINE>
     -----------------------------------------------------------------------------------------
-    1/2: Starting LogisticRegression Grid Search -
+    1/3: Starting LogisticRegression Random Search -
     -----------------------------------------------------------------------------------------
     <BLANKLINE>
-    Fitting 5 folds for each of 21 candidates, totalling 105 fits
+    Fitting 5 folds for each of 10 candidates, totalling 50 fits
     <BLANKLINE>
-    Total Time: 0.0000 seconds
-    Average Fit Time: 0.0000 seconds
-    Inference Time: 0.0000
-    Best CV Accuracy Score: 0.9640
-    Train Accuracy Score: 0.9732
-    Test Accuracy Score: 1.0000
-    Overfit: No
-    Overfit Difference: -0.0268
-    Best Parameters: {'logreg__C': 10, 'logreg__solver': 'saga'}
+    Total Time: 0.00 seconds
+    Average Fit Time: 0.00 seconds
+    Inference Time: 0.00
+    Best CV Accuracy Score: 0.88
+    Train Accuracy Score: 0.89
+    Test Accuracy Score: 0.86
+    Overfit: Yes
+    Overfit Difference: 0.03
+    Best Parameters: {'logreg__solver': 'saga', 'logreg__C': 0.1}
     <BLANKLINE>
-    -----------------------------------------------------------------------------------------
-    2/2: Starting DecisionTreeClassifier Grid Search -
-    -----------------------------------------------------------------------------------------
-    <BLANKLINE>
-    Fitting 5 folds for each of 54 candidates, totalling 270 fits
-    <BLANKLINE>
-    Total Time: 0.0000 seconds
-    Average Fit Time: 0.0000 seconds
-    Inference Time: 0.0000
-    Best CV Accuracy Score: 0.9545
-    Train Accuracy Score: 0.9643
-    Test Accuracy Score: 1.0000
-    Overfit: No
-    Overfit Difference: -0.0357
-    Best Parameters: {'tree_class__criterion': 'entropy', 'tree_class__max_depth': 5, 'tree_class__min_samples_leaf': 4, 'tree_class__min_samples_split': 5}
-    >>> results_df.head()  #doctest: +NORMALIZE_WHITESPACE
-                        Model  Test Size Over Sample Under Sample Resample  Total Fit Time  Fit Count  Average Fit Time  Inference Time Grid Scorer                                        Best Params  Best CV Score  Train Score  Test Score Overfit  Overfit Difference  Train Accuracy Score  Test Accuracy Score  Train Precision Score  Test Precision Score  Train Recall Score  Test Recall Score  Train F1 Score  Test F1 Score  Train ROC AUC Score  Test ROC AUC Score  Threshold  True Positives  False Positives  True Negatives  False Negatives  TPR  FPR  TNR  FNR  False Rate      Pipeline Notes Timestamp
-    0      LogisticRegression       0.25        None         None     None               0        105                 0               0    Accuracy        {'logreg__C': 10, 'logreg__solver': 'saga'}       0.964032     0.973214         1.0      No           -0.026786              0.973214                  1.0               0.973437                   1.0            0.973214                1.0        0.973214            1.0             0.998586                 1.0        0.5             NaN              NaN             NaN              NaN  NaN  NaN  NaN  NaN         NaN      [logreg]  None
-    1  DecisionTreeClassifier       0.25        None         None     None               0        270                 0               0    Accuracy  {'tree_class__criterion': 'entropy', 'tree_cla...       0.954545     0.964286         1.0      No           -0.035714              0.964286                  1.0               0.965096                   1.0            0.964286                1.0        0.964250            1.0             0.996583                 1.0        0.5             NaN              NaN             NaN              NaN  NaN  NaN  NaN  NaN         NaN  [tree_class]  None
-
-    Example 2: Compare models with custom parameters and evaluation:
-
-    >>> model_list = [SVC, XGBClassifier]
-    >>> random_state = 42
-    >>> class_weight = None
-    >>> my_config = {
-    ...     'models': {
-    ...         'svm_proba': SVC(random_state=random_state, probability=True, class_weight=class_weight),
-    ...         'xgb_class': XGBClassifier(random_state=random_state)
-    ...     }
-    ... }
-    >>> grid_params = {
-    ...     'svm_proba': {
-    ...         'svm_proba__C': [0.0001, 0.001, 0.01, 0.1, 1, 10, 100],
-    ...         'svm_proba__kernel': ['linear', 'poly', 'rbf', 'sigmoid']
-    ...     },
-    ...     'xgb_class': {
-    ...         'xgb_class__learning_rate': [0.01, 0.1, 0.5],
-    ...         'xgb_class__max_depth': [3, 5, 7],
-    ...         'xgb_class__subsample': [0.7, 0.8, 0.9],
-    ...         'xgb_class__colsample_bytree': [0.7, 0.8, 0.9],
-    ...         'xgb_class__n_estimators': [50, 100, 200],
-    ...         'xgb_class__objective': ['binary:logistic'],
-    ...         'xgb_class__gamma': [0, 1, 5, 10]
-    ...     }
-    ... }
-    >>> results_df = compare_models(X, y, model_list=model_list, show_time=False, config=my_config,
-    ...                         grid_params=grid_params, cv_folds=3, search_type='random',
-    ...                         scorer='f1_micro', model_eval=True, verbose=1,
-    ...                         svm_proba=True, random_state=42, pos_label=1,
-    ...                         num_columns=num_columns, cat_columns=cat_columns,
-    ...                         fig_size=(10, 5))  #doctest: +NORMALIZE_WHITESPACE
-    <BLANKLINE>
-    -----------------------------------------------------------------------------------------
-    Starting Data Processing -
-    -----------------------------------------------------------------------------------------
-    <BLANKLINE>
-    Classification type detected: multi
-    Unique values in y: [0 1 2]
-    y data type after conversion: int64
-    <BLANKLINE>
-    Train/Test split, test_size:  0.25
-    X_train, X_test, y_train, y_test shapes:  (112, 4) (38, 4) (112,) (38,)
-    <BLANKLINE>
-    -----------------------------------------------------------------------------------------
-    1/2: Starting SVC Random Search -
-    -----------------------------------------------------------------------------------------
-    <BLANKLINE>
-    Fitting 3 folds for each of 10 candidates, totalling 30 fits
-    <BLANKLINE>
-    Total Time: 0.0000 seconds
-    Average Fit Time: 0.0000 seconds
-    Inference Time: 0.0000
-    Best CV F1 (micro) Score: 0.9552
-    Train F1 (micro) Score: 0.9821
-    Test F1 (micro) Score: 1.0000
-    Overfit: No
-    Overfit Difference: -0.0179
-    Best Parameters: {'svm_proba__kernel': 'poly', 'svm_proba__C': 100}
-    <BLANKLINE>
-    SVC Multi-Class Classification Report
+    LogisticRegression Binary Classification Report
     <BLANKLINE>
                   precision    recall  f1-score   support
     <BLANKLINE>
-               0       1.00      1.00      1.00        15
-               1       1.00      1.00      1.00        11
-               2       1.00      1.00      1.00        12
+       Malignant       0.81      0.82      0.81        92
+          Benign       0.89      0.89      0.89       158
     <BLANKLINE>
-        accuracy                           1.00        38
-       macro avg       1.00      1.00      1.00        38
-    weighted avg       1.00      1.00      1.00        38
+        accuracy                           0.86       250
+       macro avg       0.85      0.85      0.85       250
+    weighted avg       0.86      0.86      0.86       250
     <BLANKLINE>
-    ROC AUC: 1.0
+    ROC AUC: 0.92
+    <BLANKLINE>
+                   Predicted:0         1
+    Actual: 0                75        17
+    Actual: 1                18        140
+    <BLANKLINE>
+    True Positive Rate / Sensitivity: 0.89
+    True Negative Rate / Specificity: 0.82
+    False Positive Rate / Fall-out: 0.18
+    False Negative Rate / Miss Rate: 0.11
+    <BLANKLINE>
+    Positive Class: Benign (1)
+    Threshold: 0.5
     <BLANKLINE>
     -----------------------------------------------------------------------------------------
-    2/2: Starting XGBClassifier Random Search -
+    2/3: Starting KNeighborsClassifier Random Search -
     -----------------------------------------------------------------------------------------
     <BLANKLINE>
-    Fitting 3 folds for each of 10 candidates, totalling 30 fits
+    Fitting 5 folds for each of 10 candidates, totalling 50 fits
     <BLANKLINE>
-    Total Time: 0.0000 seconds
-    Average Fit Time: 0.0000 seconds
-    Inference Time: 0.0000
-    Best CV F1 (micro) Score: 0.9462
-    Train F1 (micro) Score: 0.9554
-    Test F1 (micro) Score: 1.0000
-    Overfit: No
-    Overfit Difference: -0.0446
-    Best Parameters: {'xgb_class__subsample': 0.9, 'xgb_class__objective': 'binary:logistic', 'xgb_class__n_estimators': 50, 'xgb_class__max_depth': 5, 'xgb_class__learning_rate': 0.1, 'xgb_class__gamma': 1, 'xgb_class__colsample_bytree': 0.9}
+    Total Time: 0.00 seconds
+    Average Fit Time: 0.00 seconds
+    Inference Time: 0.00
+    Best CV Accuracy Score: 0.86
+    Train Accuracy Score: 1.00
+    Test Accuracy Score: 0.84
+    Overfit: Yes
+    Overfit Difference: 0.16
+    Best Parameters: {'knn_class__weights': 'distance', 'knn_class__n_neighbors': 20, 'knn_class__metric': 'manhattan'}
     <BLANKLINE>
-    XGBClassifier Multi-Class Classification Report
+    KNeighborsClassifier Binary Classification Report
     <BLANKLINE>
                   precision    recall  f1-score   support
     <BLANKLINE>
-               0       1.00      1.00      1.00        15
-               1       1.00      1.00      1.00        11
-               2       1.00      1.00      1.00        12
+       Malignant       0.75      0.84      0.79        92
+          Benign       0.90      0.84      0.87       158
     <BLANKLINE>
-        accuracy                           1.00        38
-       macro avg       1.00      1.00      1.00        38
-    weighted avg       1.00      1.00      1.00        38
+        accuracy                           0.84       250
+       macro avg       0.82      0.84      0.83       250
+    weighted avg       0.84      0.84      0.84       250
     <BLANKLINE>
-    ROC AUC: 1.0
-    >>> results_df.head()  #doctest: +NORMALIZE_WHITESPACE
-               Model  Test Size Over Sample Under Sample Resample  Total Fit Time  Fit Count  Average Fit Time  Inference Time Grid Scorer                                        Best Params  Best CV Score  Train Score  Test Score Overfit  Overfit Difference  Train Accuracy Score  Test Accuracy Score  Train Precision Score  Test Precision Score  Train Recall Score  Test Recall Score  Train F1 Score  Test F1 Score  Train ROC AUC Score  Test ROC AUC Score  Threshold  True Positives  False Positives  True Negatives  False Negatives  TPR  FPR  TNR  FNR  False Rate     Pipeline Notes Timestamp
-    0            SVC       0.25        None         None     None               0         30                 0               0  F1 (micro)  {'svm_proba__kernel': 'poly', 'svm_proba__C': ...       0.955192     0.982143         1.0      No           -0.017857              0.982143                  1.0               0.982143                   1.0            0.982143                1.0        0.982143            1.0             0.998115                 1.0        0.5             NaN              NaN             NaN              NaN  NaN  NaN  NaN  NaN         NaN  [svm_proba]  None
-    1  XGBClassifier       0.25        None         None     None               0         30                 0               0  F1 (micro)  {'xgb_class__subsample': 0.9, 'xgb_class__obje...       0.946183     0.955357         1.0      No           -0.044643              0.955357                  1.0               0.955574                   1.0            0.955357                1.0        0.955357            1.0             0.997407                 1.0        0.5             NaN              NaN             NaN              NaN  NaN  NaN  NaN  NaN         NaN  [xgb_class]  None
+    ROC AUC: 0.91
+    <BLANKLINE>
+                   Predicted:0         1
+    Actual: 0                77        15
+    Actual: 1                26        132
+    <BLANKLINE>
+    True Positive Rate / Sensitivity: 0.84
+    True Negative Rate / Specificity: 0.84
+    False Positive Rate / Fall-out: 0.16
+    False Negative Rate / Miss Rate: 0.16
+    <BLANKLINE>
+    Positive Class: Benign (1)
+    Threshold: 0.5
+    <BLANKLINE>
+    -----------------------------------------------------------------------------------------
+    3/3: Starting DecisionTreeClassifier Random Search -
+    -----------------------------------------------------------------------------------------
+    <BLANKLINE>
+    Fitting 5 folds for each of 10 candidates, totalling 50 fits
+    <BLANKLINE>
+    Total Time: 0.00 seconds
+    Average Fit Time: 0.00 seconds
+    Inference Time: 0.00
+    Best CV Accuracy Score: 0.88
+    Train Accuracy Score: 0.93
+    Test Accuracy Score: 0.86
+    Overfit: Yes
+    Overfit Difference: 0.08
+    Best Parameters: {'tree_class__min_samples_split': 15, 'tree_class__min_samples_leaf': 6, 'tree_class__max_depth': 5, 'tree_class__criterion': 'entropy'}
+    <BLANKLINE>
+    DecisionTreeClassifier Binary Classification Report
+    <BLANKLINE>
+                  precision    recall  f1-score   support
+    <BLANKLINE>
+       Malignant       0.76      0.89      0.82        92
+          Benign       0.93      0.84      0.88       158
+    <BLANKLINE>
+        accuracy                           0.86       250
+       macro avg       0.84      0.86      0.85       250
+    weighted avg       0.87      0.86      0.86       250
+    <BLANKLINE>
+    ROC AUC: 0.92
+    <BLANKLINE>
+                   Predicted:0         1
+    Actual: 0                82        10
+    Actual: 1                26        132
+    <BLANKLINE>
+    True Positive Rate / Sensitivity: 0.84
+    True Negative Rate / Specificity: 0.89
+    False Positive Rate / Fall-out: 0.11
+    False Negative Rate / Miss Rate: 0.16
+    <BLANKLINE>
+    Positive Class: Benign (1)
+    Threshold: 0.5
+    >>> results_df.head()  #doctest: +NORMALIZE_WHITESPACE +ELLIPSIS
+                        Model  Test Size Over Sample Under Sample Resample  Total Fit Time  Fit Count  Average Fit Time  Inference Time Grid Scorer                                        Best Params  Best CV Score  Train Score  Test Score Overfit  Overfit Difference  Train Accuracy Score  Test Accuracy Score  Train Precision Score  Test Precision Score  Train Recall Score  Test Recall Score  Train F1 Score  Test F1 Score  Train ROC AUC Score  Test ROC AUC Score  Threshold  True Positives  False Positives  True Negatives  False Negatives       TPR       FPR       TNR       FNR  False Rate            Pipeline                           Notes Timestamp
+    0      LogisticRegression       0.25        None         None     None               0         50                 0               0    Accuracy       {'logreg__solver': 'saga', 'logreg__C': 0.1}       0.877333        0.888       0.860     Yes               0.028                 0.888                0.860               0.903153              0.891720            0.907240           0.886076        0.905192       0.888889             0.935388            0.922675        0.5             140               17              75               18  0.886076  0.184783  0.815217  0.113924    0.298707     [stand, logreg]  Test Size=0.25, Threshold=0.50
+    1    KNeighborsClassifier       0.25        None         None     None               0         50                 0               0    Accuracy  {'knn_class__weights': 'distance', 'knn_class_...       0.861333        1.000       0.836     Yes               0.164                 1.000                0.836               1.000000              0.897959            1.000000           0.835443        1.000000       0.865574             1.000000            0.911805        0.5             132               15              77               26  0.835443  0.163043  0.836957  0.164557    0.327600  [stand, knn_class]  Test Size=0.25, Threshold=0.50
+    2  DecisionTreeClassifier       0.25        None         None     None               0         50                 0               0    Accuracy  {'tree_class__min_samples_split': 15, 'tree_cl...       0.882667        0.932       0.856     Yes               0.076                 0.932                0.856               0.955711              0.929577            0.927602           0.835443        0.941447       0.880000             0.974926            0.919889        0.5             132               10              82               26  0.835443  0.108696  0.891304  0.164557    0.273253        [tree_class]  Test Size=0.25, Threshold=0.50
     """
-    # Check for required parameters
-    if (model_list is None) or (grid_params is None):
-        raise ValueError("Please specify a model_list and grid_params.")
+    # Initialize debugging, controlled via 'debug' parameter
+    db = DebugPrinter(debug = debug)
+    db.print('-' * 40)
+    db.print('START compare_models')
+    db.print('-' * 40, '\n')
+    db.print('x shape:', x.shape)
+    db.print('y shape:', y.shape)
+    db.print('models:', models)
+    db.print('imputer:', imputer)
+    db.print('impute_first:', impute_first)
+    db.print('transformers:', transformers)
+    db.print('scaler:', scaler)
+    db.print('selector:', selector)
+    db.print('cat_columns:', cat_columns)
+    db.print('num_columns:', num_columns)
+    db.print('class_map:', class_map)
+    db.print('pos_label:', pos_label)
+    db.print('test_size:', test_size)
+    db.print('threshold:', threshold)
+    db.print('class_weight:', class_weight)
+    db.print('stratify:', stratify)
+    db.print('search_type:', search_type)
+    db.print('cv_folds:', grid_cv)
+    db.print('plot_perf:', plot_perf)
+    db.print('scorer:', scorer)
+    db.print('random_state:', random_state)
+    db.print('decimal:', decimal)
+    db.print('verbose:', verbose)
+    db.print('title:', title)
+    db.print('fig_size:', fig_size)
+    db.print('figmulti:', figmulti)
+    db.print('multi_class:', multi_class)
+    db.print('average:', average)
+    db.print('legend_loc:', legend_loc)
+    db.print('model_eval:', model_eval)
+    db.print('svm_proba:', svm_proba)
+    db.print('max_iter:', max_iter)
+    db.print('rotation:', rotation)
+    db.print('plot_curve:', plot_curve)
+    db.print('under_sample:', under_sample)
+    db.print('over_sample:', over_sample)
+    db.print('notes:', notes)
+    db.print('svm_knn_resample:', svm_knn_resample)
+    db.print('n_jobs:', n_jobs)
+    db.print('output:', output)
+    db.print('timezone:', timezone)
+    db.print('show_time:', show_time)
+    db.print('config:', config)
+
+    # Define required parameters
+    required_params = {
+        'x': x,
+        'y': y,
+        'models': models,
+        'config': config
+    }
+
+    # Find which parameters are missing
+    db.print('\nChecking for missing parameters...')
+    missing_params = [name for name, value in required_params.items() if value is None]
+
+    # Show error message if required parameters are missing
+    if missing_params:
+        missing_str = ", ".join(missing_params)
+        raise ValueError(f"Missing required parameters: {missing_str}.")
+
+    # Define required keys
+    required_keys = ['models', 'params']
+
+    # Check for missing keys
+    missing_keys = [key for key in required_keys if key not in config]
+
+    if missing_keys:
+        missing_str = ", ".join(missing_keys)
+        raise ValueError(f"Missing required configuration keys: {missing_str}")
+
+    # Create a mapping from model key to class name based on the provided configuration
+    # model_map = {key: value.__class__.__name__ for key, value in config['models'].items()}
+    model_map = {key: (value, value.__class__.__name__) for key, value in config['models'].items()}
+    db.print('model_map:', model_map)
+
+    # Check if all provided model keys exist in the model_map
+    missing_models = [model_key for model_key in models if model_key not in model_map]
+
+    # If there are missing models, raise an error now instead of finding out later
+    if missing_models:
+        known_models = ', '.join(model_map.keys())
+        missing_models_str = ', '.join(missing_models)
+        raise ValueError(f"'{missing_models_str}' not in config['models']. Please add them to your configuration. Known models are: {known_models}")
+
+    # Store the grid search params from the config in grid_params
+    # To-do: Make grid search optional
+    grid_params = config['params']
+    db.print('grid_params:', grid_params)
+
+    # Configure the cross-validation function for Grid Search
+    if isinstance(grid_cv, int):
+        db.print(f'\ngrid_cv is int: {grid_cv}. Using KFold cross-validation...')
+        cv_func = KFold(n_splits=grid_cv, shuffle=True, random_state=random_state)
+    elif isinstance(grid_cv, str):
+        db.print(f"\ngrid_cv is str: {grid_cv}. Looking for function in config['cv']...")
+        if 'cv' not in config:
+            raise ValueError("Key 'cv' not found in config. Please define a cross-validation function in config['cv'] and set grid_cv to that string name. Alternatively, specify an int for the number of folds, or don't specify grid_cv to go with default of 5.")
+        elif config['cv'] is None:
+            raise ValueError("config['cv'] is None. Please define a cross-validation function in config['cv'] and set grid_cv to that string name. Alternatively, specify an int for the number of folds, or don't specify grid_cv to go with default of 5.")
+        # Get the cross-validation function from the config
+        elif grid_cv in config['cv']:
+            cv_func = config['cv'][grid_cv]
+            db.print("grid_cv found in config['cv']. Using specified instance for cross-validation...")
+        else:
+            raise ValueError(f"Invalid grid_cv: {grid_cv}. Please define a cross-validation function in config['cv'] and set grid_cv to that string name. Alternatively, specify an int for the number of folds, or don't specify grid_cv to go with default of 5.")
+    else:
+        db.print(f"\ngrid_cv is None or not an int or str. Using default KFold cross-validation with 5 splits...")
+        cv_func = KFold(n_splits=5, shuffle=True, random_state=random_state)
+    db.print('cv_func:', cv_func)
 
     # Function to create a scorer and a display name from the scorer param
     def get_scorer_and_name(scorer, pos_label=None):
@@ -583,30 +749,35 @@ def compare_models(
         ]
 
         # Function to build the scoring function and display name
-        def build_scoring_function(score_type, pos_label=None, average='macro'):
+        def build_scoring_function(score_type, pos_label=None, average='macro', zero_division=0):
             if pos_label is not None:
                 # For binary classification tasks requiring a pos_label
-                return (make_scorer(eval(f'{score_type}_score'), pos_label=pos_label),
+                return (make_scorer(eval(f'{score_type}_score'), pos_label=pos_label, zero_division=zero_division),
                         f'{score_type.capitalize()} (pos_label={pos_label})')
             elif average in average_types:
                 # For multi-class/multi-label tasks specifying an average type
-                return make_scorer(eval(f'{score_type}_score'), average=average), f'{score_type.capitalize()} ({average})'
+                return make_scorer(eval(f'{score_type}_score'), average=average, zero_division=zero_division), f'{score_type.capitalize()} ({average})'
             else:
                 raise ValueError(f"Invalid average type: {average}. Valid options are: {', '.join(average_types)}")
 
         # Determine the scorer and display name based on input
+        db.print('\nCreating scoring function...')
         if scorer in valid_scorers:
             if scorer in ['precision', 'recall', 'f1'] and pos_label is None:
                 # Default to 'macro' average for multi-class tasks if pos_label is not specified
+                db.print('Using macro average for multi-class tasks...')
                 scoring_function, display_name = build_scoring_function(scorer, average='macro')
             elif scorer.startswith(('precision_', 'recall_', 'f1_')):
                 # Extract score type and average type from scorer string
+                db.print('Extracting score type and average type from scorer string...')
                 score_type, avg_type = scorer.split('_')
-                scoring_function, display_name = build_scoring_function(score_type, average=avg_type)
+                scoring_function, display_name = build_scoring_function(score_type, average=avg_type, zero_division=0)
             elif scorer == 'accuracy':
+                db.print('Using accuracy as the scoring function...')
                 scoring_function, display_name = 'accuracy', 'Accuracy'
             else:
                 # Use predefined scikit-learn scorer strings for other cases
+                db.print('Using predefined scikit-learn scorer strings...')
                 scoring_function, display_name = scorer, scorer.capitalize()
         else:
             # Show an error message if the scorer is invalid
@@ -616,12 +787,14 @@ def compare_models(
 
     # Define the scorer and display name
     scorer, scorer_name = get_scorer_and_name(scorer=scorer, pos_label=pos_label)
+    db.print('scorer:', scorer)
+    db.print('scorer_name:', scorer_name)
 
     # Empty timestamp by default for test cases where we don't want time differences to trigger a failure
     timestamp = ''
 
     # Set initial timestamp for data processing
-    if show_time:
+    if show_time is True:
         current_time = datetime.now(pytz.timezone(timezone))
         timestamp = current_time.strftime(f'%b %d, %Y %I:%M %p {timezone}')
 
@@ -632,28 +805,45 @@ def compare_models(
 
     # Detect the type of classification problem
     unique_y = np.unique(y)
-    if len(unique_y) > 2:
+    num_classes = len(unique_y)
+    db.print('unique_y:', unique_y)
+    db.print('num_classes:', num_classes)
+    if num_classes > 2:
         class_type = 'multi'
-        average = 'weighted'
-    else:
+        if average is None:
+            average = 'macro'
+    elif num_classes == 2:
         class_type = 'binary'
         average = 'binary'
-
+    else:
+        raise ValueError(f"Check data, cannot classify. Number of classes in y_test ({num_classes}) is less than 2: {unique_y}")
     if output:
         print(f"Classification type detected: {class_type}")
         print("Unique values in y:", unique_y)
 
     # Change data type of y if necessary
-    if y.dtype.kind in 'biufc':  # If y is numeric
-        y = y.astype(int)  # Convert to int for numeric labels
-    else:
-        y = y.astype(str)  # Convert to str for categorical labels
+    # if y.dtype.kind in 'biufc':  # If y is numeric
+    #     y = y.astype(int)  # Convert to int for numeric labels
+    # else:
+    #     y = y.astype(str)  # Convert to str for categorical labels
+    #
+    # if output:
+    #     print(f"y data type after conversion: {y.dtype}")
 
-    if output:
-        print(f"y data type after conversion: {y.dtype}")
+    # Make sure y is a Series or a one-dimensional array
+    if isinstance(y, pd.DataFrame):
+        # Check if y is a DataFrame with only one column
+        if y.shape[1] == 1:
+            # Convert the single-column DataFrame to a Series
+            db.print('\nConverting y from DataFrame to Series...')
+            y = y.squeeze()
+            db.print('y shape after conversion:', y.shape)
+        else:
+            # Handle the case where y is a DataFrame with multiple columns
+            raise ValueError("y should be a Series or a one-dimensional array, but a DataFrame with multiple columns was provided.")
 
     # Perform the train/test split
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, stratify=stratify,
+    X_train, X_test, y_train, y_test = train_test_split(x, y, test_size=test_size, stratify=stratify,
                                                         random_state=random_state)
 
     if output:
@@ -766,10 +956,10 @@ def compare_models(
 
         # Select the appropriate search method
         if search_type == 'grid':
-            grid = GridSearchCV(pipe, param_grid=combined_params, scoring=scorer, verbose=verbose, cv=cv_folds, n_jobs=n_jobs)
+            grid = GridSearchCV(pipe, param_grid=combined_params, scoring=scorer, verbose=verbose, cv=cv_func, n_jobs=n_jobs)
         elif search_type == 'random':
             grid = RandomizedSearchCV(pipe, param_distributions=combined_params, scoring=scorer, verbose=verbose,
-                                      cv=cv_folds, random_state=random_state, n_jobs=n_jobs)
+                                      cv=cv_func, random_state=random_state, n_jobs=n_jobs)
         else:
             raise ValueError("search_type should be either 'grid' for GridSearchCV, or 'random' for RandomizedSearchCV")
 
@@ -778,237 +968,53 @@ def compare_models(
     # Clean up the grid search type for display
     search_string = search_type.capitalize()
 
-    # Main Loop: Iterate through each model in the list and run the workflow for each
-    for i in range(len(model_list)):
+    # Set count of total models to iterate through
+    total_models = len(models)
 
-        # Grab the model name and total count
-        model = model_list[i]
-        total = len(model_list)
+    # Model Loop: Iterate through each model in the list and run the workflow for each
+    for i, model_key in enumerate(models):
+
+        # Get the model class and a text version of the name from the mapping we did earlier
+        model_class, model_name = model_map[model_key]
+        db.print(f'\nStarting iteration. i: {i}, total_models: {total_models}, model_key: {model_key}, model_class:{model_class}, model_name: {model_name}:')
+
 
         # Create the timestamp for this model's iteration
-        if show_time:
+        if show_time is True:
             current_time = datetime.now(pytz.timezone(timezone))
             timestamp = current_time.strftime(f'%b %d, %Y %I:%M %p {timezone}')
         timestamp_list.append(timestamp)
 
-        if model == LogisticRegression:
-            model_name = 'LogisticRegression'
-            if output:
-                print(f"\n-----------------------------------------------------------------------------------------")
-                print(f"{i+1}/{total}: Starting LogisticRegression {search_string} Search - {timestamp}")
-                print(f"-----------------------------------------------------------------------------------------\n")
+        # Show a banner with number, model name, search type, timestamp, for this model's iteration
+        if output:
+            print(f"\n-----------------------------------------------------------------------------------------")
+            print(f"{i+1}/{total_models}: Starting {model_name} {search_string} Search - {timestamp}")
+            print(f"-----------------------------------------------------------------------------------------\n")
 
-            # Create a pipeline from transformer and model parameters
-            pipe = create_pipeline(imputer_key=imputer, transformer_keys=transformers, scaler_key=scaler,
-                                   selector_key=selector, model_key='logreg', config=config,
-                                   cat_columns=cat_columns, num_columns=num_columns, class_weight=class_weight,
-                                   random_state=random_state, max_iter=max_iter, impute_first=impute_first)
-
-            grid = create_grid(model_type='logreg')
-
+        # Resample the data only for KNN and SVC, if svn_knn_resample is defined
+        if svm_knn_resample is not None and model_name in ['KNeighborsClassifier', 'SVC']:
+            db.print('\nResampling for KNN and SVM...')
+            X_train, y_train = resample_for_knn_svm(X_train, y_train)
+            resample_list.append(svm_knn_resample)
+        else:
             resample_list.append("None")
 
-        elif model == DecisionTreeClassifier:
-            model_name = 'DecisionTreeClassifier'
-            if output:
-                print(f"\n-----------------------------------------------------------------------------------------")
-                print(f"{i+1}/{total}: Starting DecisionTreeClassifier {search_string} Search - {timestamp}")
-                print(f"-----------------------------------------------------------------------------------------\n")
-
-            # Create a pipeline from transformer and model parameters
-            pipe = create_pipeline(imputer_key=imputer, transformer_keys=transformers, scaler_key=scaler,
-                                   selector_key=selector, model_key='tree_class', config=config, cat_columns=cat_columns,
-                                   num_columns=num_columns, class_weight=class_weight, random_state=random_state,
-                                   max_iter=max_iter, impute_first=impute_first)
-
-            grid = create_grid(model_type='tree_class')
-
-            resample_list.append("None")
-
-        elif model == KNeighborsClassifier:
-            model_name = 'KNeighborsClassifier'
-            if output:
-                print(f"\n-----------------------------------------------------------------------------------------")
-                print(f"{i+1}/{total}: Starting KNeighborsClassifier {search_string} Search - {timestamp}")
-                print(f"-----------------------------------------------------------------------------------------\n")
-
-            # Check if svm_knn_resample is set and model is SVC
-            if svm_knn_resample is not None and resample_completed is False:
-                X_train, y_train = resample_for_knn_svm(X_train, y_train)
-                resample_completed = True
-            if resample_completed:
-                resample_list.append(svm_knn_resample)
-            else:
-                resample_list.append("None")
-
-            # Create a pipeline from transformer and model parameters
-            pipe = create_pipeline(imputer_key=imputer, transformer_keys=transformers, scaler_key=scaler,
-                                   selector_key=selector, model_key='knn_class', config=config, cat_columns=cat_columns,
-                                   num_columns=num_columns, class_weight=class_weight, random_state=random_state,
-                                   max_iter=max_iter, impute_first=impute_first)
-
-            grid = create_grid(model_type='knn_class')
-
-
-        elif model == SVC:
-            model_name = 'SVC'
-
-            if output:
-                print(f"\n-----------------------------------------------------------------------------------------")
-                print(f"{i+1}/{total}: Starting SVC {search_string} Search - {timestamp}")
-                print(f"-----------------------------------------------------------------------------------------\n")
-
-            # Check if svm_knn_resample is set and model is SVC
-            if svm_knn_resample is not None and resample_completed is False:
-                X_train, y_train = resample_for_knn_svm(X_train, y_train)
-                resample_completed = True
-            elif resample_completed:
-                resample_list.append(svm_knn_resample)
-                if output:
-                    print(f"Training data already resampled to {svm_knn_resample*100}% of original for KNN and SVM speed improvement")
-                    print("X_train, y_train shapes: ", X_train.shape, y_train.shape)
-                    print("y_train value counts: ", y_train.value_counts(), "\n")
-            else:
-                resample_list.append("None")
-
-            if svm_proba:
-                # Create a pipeline from transformer and model parameters
-                pipe = create_pipeline(imputer_key=imputer, transformer_keys=transformers, scaler_key=scaler,
-                                       selector_key=selector, model_key='svm_proba', config=config, cat_columns=cat_columns,
-                                       num_columns=num_columns, class_weight=class_weight, random_state=random_state,
-                                       max_iter=max_iter, impute_first=impute_first)
-                grid = create_grid(model_type='svm_proba')
-            else:
-                # Create a pipeline from transformer and model parameters
-                pipe = create_pipeline(imputer_key=imputer, transformer_keys=transformers, scaler_key=scaler,
-                                       selector_key=selector, model_key='svm_class', config=config, cat_columns=cat_columns,
-                                       num_columns=num_columns, class_weight=class_weight, random_state=random_state,
-                                       max_iter=max_iter, impute_first=impute_first)
-                grid = create_grid(model_type='svm_class')
-
-        elif model == RandomForestClassifier:
-            model_name = 'RandomForestClassifier'
-            if output:
-                print(f"\n-----------------------------------------------------------------------------------------")
-                print(f"{i+1}/{total}: Starting RandomForestClassifier {search_string} Search - {timestamp}")
-                print(f"-----------------------------------------------------------------------------------------\n")
-
-            # Create a pipeline from transformer and model parameters
-            pipe = create_pipeline(imputer_key=imputer, transformer_keys=transformers, scaler_key=scaler,
-                                   selector_key=selector, model_key='forest_class', config=config,
-                                   cat_columns=cat_columns, num_columns=num_columns, class_weight=class_weight,
-                                   random_state=random_state, max_iter=max_iter, impute_first=impute_first)
-
-            grid = create_grid(model_type='forest_class')
-
-            resample_list.append("None")
-
-        elif model == GradientBoostingClassifier:
-            model_name = 'GradientBoostingClassifier'
-
-            if output:
-                print(f"\n-----------------------------------------------------------------------------------------")
-                print(f"{i+1}/{total}: Starting GradientBoostingClassifier {search_string} Search - {timestamp}")
-                print(f"-----------------------------------------------------------------------------------------\n")
-
-            # Create a pipeline from transformer and model parameters
-            pipe = create_pipeline(imputer_key=imputer, transformer_keys=transformers, scaler_key=scaler,
-                                   selector_key=selector, model_key='boost_class', config=config, cat_columns=cat_columns,
-                                   num_columns=num_columns, class_weight=class_weight, random_state=random_state,
-                                   max_iter=max_iter, impute_first=impute_first)
-
-            grid = create_grid(model_type='boost_class')
-
-            resample_list.append("None")
-
-        elif model == XGBClassifier:
-            model_name = 'XGBClassifier'
-
-            if output:
-                print(f"\n-----------------------------------------------------------------------------------------")
-                print(f"{i+1}/{total}: Starting XGBClassifier {search_string} Search - {timestamp}")
-                print(f"-----------------------------------------------------------------------------------------\n")
-
-            # Create a pipeline from transformer and model parameters
-            pipe = create_pipeline(imputer_key=imputer, transformer_keys=transformers, scaler_key=scaler,
-                                   selector_key=selector, model_key='xgb_class', config=config, cat_columns=cat_columns,
-                                   num_columns=num_columns, class_weight=class_weight, random_state=random_state,
-                                   max_iter=max_iter, impute_first=impute_first)
-
-            grid = create_grid(model_type='xgb_class')
-
-            resample_list.append("None")
-
-        elif model == AdaBoostClassifier:
-            model_name = 'AdaBoostClassifier'
-
-            if output:
-                print(f"\n-----------------------------------------------------------------------------------------")
-                print(f"{i+1}/{total}: Starting AdaBoostClassifier {search_string} Search - {timestamp}")
-                print(f"-----------------------------------------------------------------------------------------\n")
-
-            # Create a pipeline from transformer and model parameters
-            pipe = create_pipeline(imputer_key=imputer, transformer_keys=transformers, scaler_key=scaler,
-                                   selector_key=selector, model_key='ada_class', config=config, cat_columns=cat_columns,
-                                   num_columns=num_columns, class_weight=class_weight, random_state=random_state,
-                                   max_iter=max_iter, impute_first=impute_first)
-
-            grid = create_grid(model_type='ada_class')
-
-            resample_list.append("None")
-
-        elif model == KerasClassifier:
-            model_name = 'KerasClassifier'
-            if output:
-                print(f"\n-----------------------------------------------------------------------------------------")
-                print(f"{i+1}/{total}: Starting KerasClassifier {search_string} Search - {timestamp}")
-                print(f"-----------------------------------------------------------------------------------------\n")
-
+        # Set the random seed to random_state for models using TensorFlow
+        if model_name == 'KerasClassifier':
+            db.print('\nSetting random seed for Keras Classifier:', random_state)
             tf.random.set_seed(random_state)
 
-            # Create a pipeline from transformer and model parameters
-            pipe = create_pipeline(imputer_key=imputer, transformer_keys=transformers, scaler_key=scaler,
-                                   selector_key=selector, model_key='keras_class', config=config,
-                                   cat_columns=cat_columns, num_columns=num_columns, class_weight=class_weight,
-                                   random_state=random_state, max_iter=max_iter, impute_first=impute_first)
+        db.print('\nCreating pipeline from transformer and model parameters...')
+        # Create a pipeline from transformer and model parameters
+        pipe = create_pipeline(imputer_key=imputer, transformer_keys=transformers, scaler_key=scaler,
+                               selector_key=selector, model_key=model_key, config=config,
+                               cat_columns=cat_columns, num_columns=num_columns, class_weight=class_weight,
+                               random_state=random_state, max_iter=max_iter, impute_first=impute_first)
+        db.print('pipe:', pipe)
 
-            grid = create_grid(model_type='keras_class')
-
-            resample_list.append("None")
-
-        elif model == BaggingClassifier:
-            model_name = 'BaggingClassifier'
-            if output:
-                print(f"\n-----------------------------------------------------------------------------------------")
-                print(f"{i+1}/{total}: Starting BaggingClassifier {search_string} Search - {timestamp}")
-                print(f"-----------------------------------------------------------------------------------------\n")
-
-            # Create a pipeline from transformer and model parameters
-            pipe = create_pipeline(imputer_key=imputer, transformer_keys=transformers, scaler_key=scaler,
-                                   selector_key=selector, model_key='bag_class', config=config, cat_columns=cat_columns,
-                                   num_columns=num_columns, class_weight=class_weight, random_state=random_state,
-                                   max_iter=max_iter, impute_first=impute_first)
-
-            grid = create_grid(model_type='bag_class')
-
-            resample_list.append("None")
-
-        elif model == VotingClassifier:
-            model_name = 'VotingClassifier'
-            if output:
-                print(f"\n-----------------------------------------------------------------------------------------")
-                print(f"{i+1}/{total}: Starting VotingClassifier {search_string} Search - {timestamp}")
-                print(f"-----------------------------------------------------------------------------------------\n")
-
-            # Create a pipeline from transformer and model parameters
-            pipe = create_pipeline(imputer_key=imputer, transformer_keys=transformers, scaler_key=scaler,
-                                   selector_key=selector, model_key='vot_class', config=config, cat_columns=cat_columns,
-                                   num_columns=num_columns, class_weight=class_weight, random_state=random_state,
-                                   max_iter=max_iter, impute_first=impute_first)
-
-            grid = create_grid(model_type='vot_class')
-
-            resample_list.append("None")
+        db.print('\nCreating grid search object...')
+        grid = create_grid(model_type=model_key)
+        db.print('grid:', grid)
 
         # Append to each list the value from this iteration, starting with model name, pipeline, etc.
         model_name_list.append(model_name)
@@ -1016,8 +1022,12 @@ def compare_models(
 
         # Fit the model and measure total fit time, append to list
         start_time = time.time()
+        db.print('\nFitting grid...')
         grid.fit(X_train, y_train)
-        if show_time:
+        db.print('\nGrid fit complete.')
+        db.print('\nGrid search results:')
+        db.print(grid.cv_results_)
+        if show_time is True:
             fit_time = time.time() - start_time
         else:
             fit_time = 0  # Don't show changing times for test cases
@@ -1026,9 +1036,16 @@ def compare_models(
             print(f"\nTotal Time: {fit_time:.{decimal}f} seconds")
 
         # Calculate average fit time (for each fold in the CV search) and append to list
-        fit_count = len(grid.cv_results_['params']) * cv_folds
+        db.print('\nCalculating average fit time...')
+        n_splits = cv_func.get_n_splits()
+        db.print('n_splits:', n_splits)
+        n_folds = len(grid.cv_results_['params'])
+        db.print('n_folds:', n_folds)
+        fit_count = n_splits * n_folds
+        db.print('fit_count:', fit_count)
         fit_count_list.append(fit_count)
-        if show_time:
+        db.print('fit_time:', fit_time)
+        if show_time is True:
             avg_fit_time = fit_time / fit_count
         else:
             avg_fit_time = 0  # Don't show changing times for test cases
@@ -1041,42 +1058,37 @@ def compare_models(
             return np.where(probs >= threshold, 1, 0)
 
         # Debugging data for detecting support of predict_proba
-        if debug:
-            print("grid.best_estimator_:", grid.best_estimator_)
-            print("hasattr(grid.best_estimator_, 'predict_proba'):", hasattr(grid.best_estimator_, 'predict_proba'))
-            print("hasattr(grid.best_estimator_, 'decision_function'):", hasattr(grid.best_estimator_, 'decision_function'))
+        db.print("grid.best_estimator_:", grid.best_estimator_)
+        db.print("hasattr(grid.best_estimator_, 'predict_proba'):", hasattr(grid.best_estimator_, 'predict_proba'))
+        db.print("hasattr(grid.best_estimator_, 'decision_function'):", hasattr(grid.best_estimator_, 'decision_function'))
 
         # Generate train predictions based on class type and threshold
+        db.print('\nGenerating train predictions based on class type and threshold...')
         if class_type == 'binary':
             if hasattr(grid.best_estimator_, 'predict_proba'):
                 # Model supports probability estimates
                 if threshold != 0.5:
-                    if debug:
-                        print(f'Class: {class_type}, Method: predict_proba, Threshold: {threshold}, Data: Train')
+                    db.print(f'Class: {class_type}, Method: predict_proba, Threshold: {threshold}, Data: Train')
                     # Get probabilities for the positive class
                     probabilities_train = grid.predict_proba(X_train)[:, 1]
                     # Apply the custom threshold to get binary predictions
                     y_train_pred = apply_threshold(probabilities_train, threshold)
                 else:
-                    if debug:
-                        print(f'Class: {class_type}, Method: predict, Threshold: {threshold}, Data: Train')
+                    db.print(f'Class: {class_type}, Method: predict, Threshold: {threshold}, Data: Train')
                     # Use default predictions for binary classification
                     y_train_pred = grid.predict(X_train)
             elif hasattr(grid.best_estimator_, 'decision_function'):
-                if debug:
-                    print(f'Class: {class_type}, Method: decision_function, Threshold: {threshold}, Data: Train')
+                db.print(f'Class: {class_type}, Method: decision_function, Threshold: {threshold}, Data: Train')
                 # Model does not support probability estimates but has a decision function (ex: SVC without probability)
                 decision_values_train = grid.decision_function(X_train)
                 # Apply the custom threshold to the decision function values
                 y_train_pred = apply_threshold(decision_values_train, threshold)
             else:
-                if debug:
-                    print(f'Class: {class_type}, Method: predict, Threshold: {threshold}, Data: Train')
+                db.print(f'Class: {class_type}, Method: predict, Threshold: {threshold}, Data: Train')
                 # Use default predictions if neither predict_proba nor decision_function are available
                 y_train_pred = grid.predict(X_train)
         elif class_type == 'multi':
-            if debug:
-                print(f'Class: {class_type}, Method: predict, Threshold: {threshold}, Data: Train')
+            db.print(f'Class: {class_type}, Method: predict, Threshold: {threshold}, Data: Train')
             # Use default predictions for multi-class classification
             y_train_pred = grid.predict(X_train)
 
@@ -1084,33 +1096,29 @@ def compare_models(
         start_time = time.time()
 
         # Generate test predictions based on class type and threshold
+        db.print('\nGenerating test predictions based on class type and threshold...')
         if class_type == 'binary':
             if hasattr(grid.best_estimator_, 'predict_proba'):
                 if threshold != 0.5:
-                    if debug:
-                        print(f'Class: {class_type}, Method: predict_proba, Threshold: {threshold}, Data: Test')
+                    db.print(f'Class: {class_type}, Method: predict_proba, Threshold: {threshold}, Data: Test')
                     probabilities_test = grid.predict_proba(X_test)[:, 1]
                     y_test_pred = apply_threshold(probabilities_test, threshold)
                 else:
-                    if debug:
-                        print(f'Class: {class_type}, Method: predict, Threshold: {threshold}, Data: Test')
+                    db.print(f'Class: {class_type}, Method: predict, Threshold: {threshold}, Data: Test')
                     y_test_pred = grid.predict(X_test)
             elif hasattr(grid.best_estimator_, 'decision_function'):
-                if debug:
-                    print(f'Class: {class_type}, Method: decision_function, Threshold: {threshold}, Data: Test')
+                db.print(f'Class: {class_type}, Method: decision_function, Threshold: {threshold}, Data: Test')
                 decision_values_test = grid.decision_function(X_test)
                 y_test_pred = apply_threshold(decision_values_test, threshold)
             else:
-                if debug:
-                    print(f'Class: {class_type}, Method: predict, Threshold: {threshold}, Data: Test')
+                db.print(f'Class: {class_type}, Method: predict, Threshold: {threshold}, Data: Test')
                 y_test_pred = grid.predict(X_test)
         elif class_type == 'multi':
-            if debug:
-                print(f'Class: {class_type}, Method: predict, Threshold: {threshold}, Data: Test')
+            db.print(f'Class: {class_type}, Method: predict, Threshold: {threshold}, Data: Test')
             y_test_pred = grid.predict(X_test)
 
         # Capture the inference time, or test predictions time
-        if show_time:
+        if show_time is True:
             inference_time = time.time() - start_time
         else:
             inference_time = 0  # Don't show changing times for test cases
@@ -1123,45 +1131,44 @@ def compare_models(
             try:
                 if class_type == 'multi':
                     # For multi-class classification, use predict_proba with multi_class='ovr'
-                    if debug:
-                        print(f'Class: {class_type}, Method: predict_proba(X), Threshold: {threshold}, Data: {note}, Score: ROC AUC')
+                    db.print(f'Class: {class_type}, Method: predict_proba(X), Threshold: {threshold}, Data: {note}, Score: ROC AUC')
                     return roc_auc_score(y, grid.predict_proba(X), multi_class='ovr')
                 else:
                     # For binary classification, use predict_proba for positive class
-                    if debug:
-                        print(f'Class: {class_type}, Method: predict_proba(X)[:, 1], Threshold: {threshold}, Data: {note}, Score: ROC AUC')
+                    db.print(f'Class: {class_type}, Method: predict_proba(X)[:, 1], Threshold: {threshold}, Data: {note}, Score: ROC AUC')
                     return roc_auc_score(y, grid.predict_proba(X)[:, 1])
             except AttributeError:
                 # If predict_proba is not available, attempt to use decision_function for binary classification
-                if debug:
-                    print('ATTRIBUTE ERROR')
+                db.print('ATTRIBUTE ERROR')
                 if class_type != 'multi' and hasattr(grid, 'decision_function'):
-                    if debug:
-                        print(f'Class: {class_type}, Method: decision_function(X), Threshold: {threshold}, Data: {note}, Score: ROC AUC')
+                    db.print(f'Class: {class_type}, Method: decision_function(X), Threshold: {threshold}, Data: {note}, Score: ROC AUC')
                     decision_values = grid.decision_function(X)
                     return roc_auc_score(y, decision_values)
                 # If neither predict_proba nor decision_function are suitable, return None
-                if debug:
-                    print(f'Class: {class_type}, Method: NONE, Threshold: {threshold}, Data: {note}, Score: ROC AUC')
+                db.print(f'Class: {class_type}, Method: NONE, Threshold: {threshold}, Data: {note}, Score: ROC AUC')
                 return None
 
         # Calculate the train and test ROC AUC
+        db.print('\nCalculating ROC AUC...')
         train_roc_auc = calculate_roc_auc(grid, X_train, y_train, class_type=class_type, note='Train')
         test_roc_auc = calculate_roc_auc(grid, X_test, y_test, class_type=class_type, note='Test')
 
         # Calculate train metrics
+        db.print('\nCalculating train metrics...')
         train_accuracy = accuracy_score(y_train, y_train_pred)
-        train_precision = precision_score(y_train, y_train_pred, average=average, zero_division=0)
-        train_recall = recall_score(y_train, y_train_pred, average=average)
-        train_f1 = f1_score(y_train, y_train_pred, average=average)
+        train_precision = precision_score(y_train, y_train_pred, average=average, zero_division=0, pos_label=pos_label)
+        train_recall = recall_score(y_train, y_train_pred, average=average, pos_label=pos_label)
+        train_f1 = f1_score(y_train, y_train_pred, average=average, pos_label=pos_label)
 
         # Calculate test metrics
+        db.print('\nCalculating test metrics...')
         test_accuracy = accuracy_score(y_test, y_test_pred)
-        test_precision = precision_score(y_test, y_test_pred, average=average, zero_division=0)
-        test_recall = recall_score(y_test, y_test_pred, average=average)
-        test_f1 = f1_score(y_test, y_test_pred, average=average)
+        test_precision = precision_score(y_test, y_test_pred, average=average, zero_division=0, pos_label=pos_label)
+        test_recall = recall_score(y_test, y_test_pred, average=average, pos_label=pos_label)
+        test_f1 = f1_score(y_test, y_test_pred, average=average, pos_label=pos_label)
 
         # Append train metrics to lists
+        db.print('\nAppending train metrics to lists...')
         train_accuracy_list.append(train_accuracy)
         train_precision_list.append(train_precision)
         train_recall_list.append(train_recall)
@@ -1169,6 +1176,7 @@ def compare_models(
         train_roc_auc_list.append(train_roc_auc)
 
         # Append test metrics to lists
+        db.print('\nAppending test metrics to lists...')
         test_accuracy_list.append(test_accuracy)
         test_precision_list.append(test_precision)
         test_recall_list.append(test_recall)
@@ -1176,24 +1184,28 @@ def compare_models(
         test_roc_auc_list.append(test_roc_auc)
 
         # Get the best Grid Search CV score and append to list
+        db.print('\nGetting the best Grid Search CV score...')
         best_cv_score = grid.best_score_
         best_cv_score_list.append(best_cv_score)
         if output:
             print(f"Best CV {scorer_name} Score: {best_cv_score:.{decimal}f}")
 
-        # Get the best Grid Search Train score adn append to list
+        # Get the best Grid Search Train score and append to list
+        db.print('\nGetting the best Grid Search Train score...')
         train_score = grid.score(X_train, y_train)
         train_score_list.append(train_score)
         if output:
             print(f"Train {scorer_name} Score: {train_score:.{decimal}f}")
 
-        # Get the best Grid Search Test score adn append to list
+        # Get the best Grid Search Test score and append to list
+        db.print('\nGetting the best Grid Search Test score...')
         test_score = grid.score(X_test, y_test)
         test_score_list.append(test_score)
         if output:
             print(f"Test {scorer_name} Score: {test_score:.{decimal}f}")
 
         # Assess the degree of overfit (train score higher than test score)
+        db.print('\nAssessing the degree of overfit...')
         overfit_diff = train_score - test_score
         overfit_diff_list.append(overfit_diff)
         if train_score > test_score:
@@ -1206,6 +1218,7 @@ def compare_models(
             print(f"Overfit Difference: {overfit_diff:.{decimal}f}")
 
         # Capture the best model and params from grid search
+        db.print('\nCapturing the best model and params from grid search...')
         best_estimator = grid.best_estimator_
         best_estimator_list.append(best_estimator)
         best_params = grid.best_params_
@@ -1214,7 +1227,8 @@ def compare_models(
             print(f"Best Parameters: {best_params}")
 
         # Output the neural network layers for KerasClassifier
-        if model == KerasClassifier:
+        if model_name == 'KerasClassifier':
+            db.print('\nOutputting the neural network layers for KerasClassifier...')
             if output:
                 # Access the Keras model from the best estimator in the grid search
                 keras_classifier = grid.best_estimator_.named_steps['keras_class']
@@ -1224,33 +1238,37 @@ def compare_models(
         # Display model evaluation metrics and plots by calling 'eval_model' function
         # Note: Some of this duplicates what we just calculated, room for future optimization
         if model_eval:
+            db.print('\nDisplaying model evaluation metrics and plots...')
 
             # Handle binary vs. multi-class, and special case for SVC that requires svm_proba=True
             if model_name != 'SVC' or (model_name == 'SVC' and svm_proba == True):
-                # Note: decimal is set to 2 and doesn't respect the decimal param, may change this
                 if class_type == 'binary':
                     # Capture binary metrics for processing later, only in the binary case
-                    binary_metrics = eval_model(y_test=y_test, y_pred=y_test_pred, x_test=X_test, estimator=grid, debug=debug,
-                                                neg_display=neg_display, pos_display=pos_display, pos_label=pos_label,
+                    binary_metrics = eval_model(y_test=y_test, y_pred=y_test_pred, x_test=X_test, estimator=grid,
+                                                class_map=class_map, pos_label=pos_label, debug=debug,
                                                 class_type=class_type, model_name=model_name, threshold=threshold,
-                                                decimal=2, plot=True, figsize=(12,11), class_weight=class_weight,
+                                                decimal=decimal, plot=True, figsize=(12,11), class_weight=class_weight,
                                                 return_metrics=True, output=output)
                 elif class_type == 'multi':
-                    eval_model(y_test=y_test, y_pred=y_test_pred, x_test=X_test, estimator=grid, debug=debug,
-                               neg_display=neg_display, pos_display=pos_display, pos_label=pos_label, class_type=class_type,
-                               model_name=model_name, output=output,
-                               decimal=2, plot=True, figmulti=figmulti, class_weight=class_weight)
+                    multi_metrics = eval_model(y_test=y_test, y_pred=y_test_pred, x_test=X_test, estimator=grid,
+                                               class_map=class_map, pos_label=pos_label, debug=debug,
+                                               class_type=class_type, model_name=model_name, average=average,
+                                               decimal=decimal, plot=True, figmulti=figmulti, class_weight=class_weight,
+                                               return_metrics=True, output=output, multi_class=multi_class)
 
             # For neural network, if plot_curves=True, re-train the model and plot training history
-            if model == KerasClassifier and plot_curve:
+            if model_name == 'KerasClassifier' and plot_curve:
+                db.print('\nRe-training the model and plotting training history...')
                 # First, apply the imputer
                 if imputer:
+                    db.print('Applying the imputer...')
                     imputed_data = best_estimator.named_steps[imputer].transform(X_train)
                 else:
                     imputed_data = X_train
 
                 # Then apply the scaler
                 if scaler:
+                    db.print('Applying the scaler...')
                     scaled_data = best_estimator.named_steps[scaler].transform(imputed_data)
                 else:
                     scaled_data = imputed_data
@@ -1258,16 +1276,16 @@ def compare_models(
 
                 # Fit the best model on the processed data so we can access history
                 # Note: Can we do this earlier to avoid fitting the model a second time?
+                db.print('Fitting the best model on the processed data...')
                 keras_classifier.fit(scaled_data, y_train)
 
                 # Debug: Print attributes of keras_classifier
-                if debug:
-                    print(dir(keras_classifier))
+                db.print('\nAttributes of keras_classifier:')
+                db.print(dir(keras_classifier))
 
                 # Access the training history
                 history = keras_classifier.model_.history.history
-                if debug:
-                    print("Training History: ", history)
+                db.print("Training History: ", history)
 
                 # Create the matplotlib figure and axes
                 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5.5))
@@ -1296,6 +1314,7 @@ def compare_models(
 
         # Set the binary metric values based on the list of binary metrics, if it was produced by 'eval_model'
         if binary_metrics is not None:
+            db.print('\nSetting the binary metric values based on the list of binary metrics...')
             tp = binary_metrics['True Positives']
             fp = binary_metrics['False Positives']
             tn = binary_metrics['True Negatives']
@@ -1307,6 +1326,7 @@ def compare_models(
             fr = fnr + fpr
         # If no binary metrics, set the values as NaN (better than string, allows numeric formatting from 'format_df')
         else:
+            db.print('\nSetting the binary metric values as NaN...')
             tp = np.nan
             fp = np.nan
             tn = np.nan
@@ -1318,6 +1338,7 @@ def compare_models(
             fr = np.nan
 
         # Append the binary metrics to the list
+        db.print('\nAppending the binary metrics to the list...')
         tp_list.append(tp)
         fp_list.append(fp)
         tn_list.append(tn)
@@ -1329,47 +1350,48 @@ def compare_models(
         fr_list.append(fr)
 
         # To debug lists not being the same length, print the lengths
-        if debug:
-            print('Model', len(model_name_list))
-            print('Test Size', len([test_size] * len(model_name_list)))
-            print('Over Sample', len([over_sample] * len(model_name_list)))
-            print('Under Sample', len([under_sample] * len(model_name_list)))
-            print('Resample', len(resample_list))
-            print('Total Fit Time', len(fit_time_list))
-            print('Fit Count', len(fit_count_list))
-            print('Average Fit Time', len(avg_fit_time_list))
-            print('Inference Time', len(inference_time_list))
-            print('Grid Scorer', len([scorer_name] * len(model_name_list)))
-            print('Best Params', len(best_param_list))
-            print('Best CV Score', len(best_cv_score_list))
-            print('Train Score', len(train_score_list))
-            print('Test Score', len(test_score_list))
-            print('Overfit', len(overfit_list))
-            print('Overfit Difference', len(overfit_diff_list))
-            print('Train Accuracy Score', len(train_accuracy_list))
-            print('Test Accuracy Score', len(test_accuracy_list))
-            print('Train Precision Score', len(train_precision_list))
-            print('Test Precision Score', len(test_precision_list))
-            print('Train Recall Score', len(train_recall_list))
-            print('Test Recall Score', len(test_recall_list))
-            print('Train F1 Score', len(train_f1_list))
-            print('Test F1 Score', len(test_f1_list))
-            print('Train ROC AUC Score', len(train_roc_auc_list))
-            print('Test ROC AUC Score', len(test_roc_auc_list))
-            print('Threshold', len([threshold] * len(model_name_list)))
-            print('True Positives', len(tp_list))
-            print('False Positives', len(fp_list))
-            print('True Negatives', len(tn_list))
-            print('False Negatives', len(fn_list))
-            print('TPR', len(tpr_list))
-            print('TNR', len(tnr_list))
-            print('FNR', len(fnr_list))
-            print('False Rate', len(fr_list))
-            print('Pipeline', len(pipeline_list))
-            print('Notes', len([notes] * len(model_name_list)))
-            print('Timestamp', len(timestamp_list))
+        db.print('\nLength of each list:')
+        db.print('Model', len(model_name_list))
+        db.print('Test Size', len([test_size] * len(model_name_list)))
+        db.print('Over Sample', len([over_sample] * len(model_name_list)))
+        db.print('Under Sample', len([under_sample] * len(model_name_list)))
+        db.print('Resample', len(resample_list))
+        db.print('Total Fit Time', len(fit_time_list))
+        db.print('Fit Count', len(fit_count_list))
+        db.print('Average Fit Time', len(avg_fit_time_list))
+        db.print('Inference Time', len(inference_time_list))
+        db.print('Grid Scorer', len([scorer_name] * len(model_name_list)))
+        db.print('Best Params', len(best_param_list))
+        db.print('Best CV Score', len(best_cv_score_list))
+        db.print('Train Score', len(train_score_list))
+        db.print('Test Score', len(test_score_list))
+        db.print('Overfit', len(overfit_list))
+        db.print('Overfit Difference', len(overfit_diff_list))
+        db.print('Train Accuracy Score', len(train_accuracy_list))
+        db.print('Test Accuracy Score', len(test_accuracy_list))
+        db.print('Train Precision Score', len(train_precision_list))
+        db.print('Test Precision Score', len(test_precision_list))
+        db.print('Train Recall Score', len(train_recall_list))
+        db.print('Test Recall Score', len(test_recall_list))
+        db.print('Train F1 Score', len(train_f1_list))
+        db.print('Test F1 Score', len(test_f1_list))
+        db.print('Train ROC AUC Score', len(train_roc_auc_list))
+        db.print('Test ROC AUC Score', len(test_roc_auc_list))
+        db.print('Threshold', len([threshold] * len(model_name_list)))
+        db.print('True Positives', len(tp_list))
+        db.print('False Positives', len(fp_list))
+        db.print('True Negatives', len(tn_list))
+        db.print('False Negatives', len(fn_list))
+        db.print('TPR', len(tpr_list))
+        db.print('TNR', len(tnr_list))
+        db.print('FNR', len(fnr_list))
+        db.print('False Rate', len(fr_list))
+        db.print('Pipeline', len(pipeline_list))
+        db.print('Notes', len([notes] * len(model_name_list)))
+        db.print('Timestamp', len(timestamp_list))
 
         # Create the results DataFrame with each list as a column, with a row for model iteration in this run
+        db.print('\nCreating the results DataFrame...')
         results_df = pd.DataFrame({'Model': model_name_list,
                                    'Test Size': [test_size] * len(model_name_list),
                                    'Over Sample': [over_sample] * len(model_name_list),
@@ -1413,7 +1435,9 @@ def compare_models(
 
     # Plot a chart showing the performance of each model, if requested
     if plot_perf:
+        db.print('\nPlotting a chart showing the performance of each model...')
         # Melt the results_df so we can plot the scores for each model
+        db.print('Melting the results_df so we can plot the scores for each model...')
         score_df = results_df.melt(id_vars=['Model'],
                                    value_vars=[f'Best CV Score', f'Train Score', f'Test Score'],
                                    var_name='Split', value_name=f'{scorer_name}')
@@ -1440,6 +1464,279 @@ def compare_models(
 
     # Return the results as a DataFrame
     return results_df
+
+
+def create_nn_binary(
+        hidden_layer_dim: int,
+        dropout_rate: float,
+        l2_reg: float,
+        second_layer_dim: Optional[int] = None,
+        third_layer_dim: Optional[int] = None,
+        meta: Dict[str, Any] = None
+) -> keras.models.Sequential:
+    """
+    Create a binary classification neural network model.
+
+    This function allows for flexible configuration of the neural network
+    structure for binary classification using the KerasClassifier in scikit-learn.
+    It supports adding up to three hidden layers with customizable dimensions,
+    dropout regularization, and L2 regularization.
+
+    Use this function to create a neural network model with a specific structure
+    and regularization settings for binary classification tasks. It is set as the
+    `model` parameter of a KerasClassifier instance referenced in the configuration
+    file for `compare_models`.
+
+    Parameters
+    ----------
+    hidden_layer_dim : int
+        The number of neurons in the first hidden layer.
+    dropout_rate : float
+        The dropout rate to be applied after each hidden layer.
+    l2_reg : float
+        The L2 regularization strength. If greater than 0, L2 regularization is
+        applied to the kernel weights of the dense layers.
+    second_layer_dim : Optional[int], optional
+        The number of neurons in an additional hidden layer. If not None, an
+        additional hidden layer is added. Default is None.
+    third_layer_dim : Optional[int], optional
+        The number of neurons in a third hidden layer. If not None, a third hidden
+        layer is added. Default is None.
+    meta : Dict[str, Any], optional
+        A dictionary containing metadata about the input features and shape.
+        Default is None.
+
+    Returns
+    -------
+    keras.models.Sequential
+        The constructed neural network model for binary classification.
+
+    Examples
+    --------
+    >>> from sklearn.datasets import make_classification
+    >>> from sklearn.model_selection import train_test_split
+    >>> X, y = make_classification(n_samples=100, n_features=10, random_state=42)
+    >>> X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2,
+    ...                                                     random_state=42)
+    >>> meta = {"n_features_in_": 10, "X_shape_": (80, 10)}
+
+    Example 1: Create a basic neural network with default settings:
+
+    >>> model = create_nn_binary(hidden_layer_dim=32, dropout_rate=0.2, l2_reg=0.01,
+    ...                       meta=meta)
+    >>> model.summary()  #doctest: +NORMALIZE_WHITESPACE
+    Model: "sequential"
+    _________________________________________________________________
+     Layer (type)                Output Shape              Param #
+    =================================================================
+     dense (Dense)               (None, 32)                352
+    <BLANKLINE>
+     dropout (Dropout)           (None, 32)                0
+    <BLANKLINE>
+     dense_1 (Dense)             (None, 1)                 33
+    <BLANKLINE>
+    =================================================================
+    Total params: 385 (1.50 KB)
+    Trainable params: 385 (1.50 KB)
+    Non-trainable params: 0 (0.00 Byte)
+    _________________________________________________________________
+
+    Example 2: Create a neural network with additional layers and regularization:
+
+    >>> model = create_nn_binary(hidden_layer_dim=64, dropout_rate=0.3, l2_reg=0.05,
+    ...                       second_layer_dim=32, third_layer_dim=16, meta=meta)
+    >>> model.summary()  #doctest: +NORMALIZE_WHITESPACE
+    Model: "sequential_1"
+    _________________________________________________________________
+     Layer (type)                Output Shape              Param #
+    =================================================================
+     dense_2 (Dense)             (None, 64)                704
+    <BLANKLINE>
+     dropout_1 (Dropout)         (None, 64)                0
+    <BLANKLINE>
+     dense_3 (Dense)             (None, 32)                2080
+    <BLANKLINE>
+     dropout_2 (Dropout)         (None, 32)                0
+    <BLANKLINE>
+     dense_4 (Dense)             (None, 16)                528
+    <BLANKLINE>
+     dropout_3 (Dropout)         (None, 16)                0
+    <BLANKLINE>
+     dense_5 (Dense)             (None, 1)                 17
+    <BLANKLINE>
+    =================================================================
+    Total params: 3329 (13.00 KB)
+    Trainable params: 3329 (13.00 KB)
+    Non-trainable params: 0 (0.00 Byte)
+    _________________________________________________________________
+    """
+    n_features_in_ = meta["n_features_in_"]
+    X_shape_ = meta["X_shape_"]
+    n_classes_ = 1  # For binary classification
+
+    model = keras.models.Sequential()
+    input_shape = (X_shape_[1],)
+
+    # Adjust L2 regularization based on the parameter
+    reg = l2(l2_reg) if l2_reg > 0 else None
+
+    # Add the first hidden layer
+    model.add(Dense(hidden_layer_dim, input_shape=input_shape, activation='relu', kernel_regularizer=reg))
+    model.add(Dropout(dropout_rate))
+
+    # Add a second hidden layer if specified
+    if second_layer_dim is not None:
+        model.add(Dense(second_layer_dim, activation='relu', kernel_regularizer=reg))
+        model.add(Dropout(dropout_rate))
+
+    # Add a third hidden layer if specified
+    if third_layer_dim is not None:
+        model.add(Dense(third_layer_dim, activation='relu', kernel_regularizer=reg))
+        model.add(Dropout(dropout_rate))
+
+    # Add the output layer for binary classification
+    model.add(Dense(n_classes_, activation='sigmoid'))
+
+    return model
+
+
+def create_nn_multi(
+        hidden_layer_dim: int,
+        dropout_rate: float,
+        l2_reg: float,
+        second_layer_dim: Optional[int] = None,
+        third_layer_dim: Optional[int] = None,
+        meta: Dict[str, Any] = None
+) -> keras.models.Sequential:
+    """
+    Create a multi-class classification neural network model.
+
+    This function allows for flexible configuration of the neural network
+    structure for multi-class classification using the KerasClassifier in
+    scikit-learn. It supports adding an optional hidden layer with customizable
+    dimensions, dropout regularization, and L2 regularization.
+
+    Use this function to create a neural network model with a specific structure
+    and regularization settings for multi-class classification tasks. It is set as
+    the `model` parameter of a KerasClassifier instance referenced in the
+    configuration file for `compare_models`.
+
+    Parameters
+    ----------
+    hidden_layer_dim : int
+        The number of neurons in the hidden layer.
+    dropout_rate : float
+        The dropout rate to be applied after the hidden layer.
+    l2_reg : float
+        The L2 regularization strength applied to the kernel weights of the dense
+        layers.
+    second_layer_dim : Optional[int], optional
+        The number of neurons in an additional hidden layer. If not None, an
+        additional hidden layer is added. Default is None.
+    third_layer_dim : Optional[int], optional
+        The number of neurons in a third hidden layer. If not None, a third hidden
+        layer is added. Default is None.
+    meta : Dict[str, Any], optional
+        A dictionary containing metadata about the input features, shape, and
+        number of classes. Default is None.
+
+    Returns
+    -------
+    keras.models.Sequential
+        The constructed neural network model for multi-class classification.
+
+    Examples
+    --------
+    >>> from sklearn.datasets import load_iris
+    >>> from sklearn.model_selection import train_test_split
+    >>> X, y = load_iris(return_X_y=True)
+    >>> X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2,
+    ...                                                     random_state=42)
+    >>> meta = {"n_features_in_": 4, "X_shape_": (120, 4), "n_classes_": 3}
+
+    Example 1: Create a basic neural network with default settings:
+
+    >>> model = create_nn_multi(hidden_layer_dim=64, dropout_rate=0.2, l2_reg=0.01,
+    ...                         meta=meta)
+    >>> model.summary()  #doctest: +NORMALIZE_WHITESPACE
+    Model: "sequential"
+    _________________________________________________________________
+     Layer (type)                Output Shape              Param #
+    =================================================================
+     dense (Dense)               (None, 4)                 20
+    <BLANKLINE>
+     dense_1 (Dense)             (None, 64)                320
+    <BLANKLINE>
+     dropout (Dropout)           (None, 64)                0
+    <BLANKLINE>
+     dense_2 (Dense)             (None, 3)                 195
+    <BLANKLINE>
+    =================================================================
+    Total params: 535 (2.09 KB)
+    Trainable params: 535 (2.09 KB)
+    Non-trainable params: 0 (0.00 Byte)
+    _________________________________________________________________
+
+    Example 2: Create a neural network with an additional hidden layer:
+
+    >>> model = create_nn_multi(hidden_layer_dim=128, dropout_rate=0.3, l2_reg=0.05,
+    ...                         second_layer_dim=64, meta=meta)
+    >>> model.summary()  #doctest: +NORMALIZE_WHITESPACE
+    Model: "sequential_1"
+    _________________________________________________________________
+     Layer (type)                Output Shape              Param #
+    =================================================================
+     dense_3 (Dense)             (None, 4)                 20
+    <BLANKLINE>
+     dense_4 (Dense)             (None, 128)               640
+    <BLANKLINE>
+     dropout_1 (Dropout)         (None, 128)               0
+    <BLANKLINE>
+     dense_5 (Dense)             (None, 64)                8256
+    <BLANKLINE>
+     dropout_2 (Dropout)         (None, 64)                0
+    <BLANKLINE>
+     dense_6 (Dense)             (None, 3)                 195
+    <BLANKLINE>
+    =================================================================
+    Total params: 9111 (35.59 KB)
+    Trainable params: 9111 (35.59 KB)
+    Non-trainable params: 0 (0.00 Byte)
+    _________________________________________________________________
+    """
+    n_features_in_ = meta["n_features_in_"]
+    X_shape_ = meta["X_shape_"]
+    n_classes_ = meta["n_classes_"]  # Number of classes for multi-class classification
+
+    model = keras.models.Sequential()
+
+    # Adjust the input layer
+    input_shape = (X_shape_[1],)  # Tuple representing the shape of a single sample
+
+    # Adjust L2 regularization based on the parameter
+    reg = l2(l2_reg) if l2_reg > 0 else None
+
+    # Input layer with L2 regularization
+    model.add(Dense(n_features_in_, input_shape=input_shape, activation='relu', kernel_regularizer=reg))
+
+    # Add the first hidden layer
+    model.add(Dense(hidden_layer_dim, activation='relu', kernel_regularizer=reg))
+    model.add(Dropout(dropout_rate))
+
+    # Add a second hidden layer if specified
+    if second_layer_dim is not None:
+        model.add(Dense(second_layer_dim, activation='relu', kernel_regularizer=reg))
+        model.add(Dropout(dropout_rate))
+
+    # Add a third hidden layer if specified
+    if third_layer_dim is not None:
+        model.add(Dense(third_layer_dim, activation='relu', kernel_regularizer=reg))
+        model.add(Dropout(dropout_rate))
+
+    # Output layer for multi-class classification
+    model.add(Dense(n_classes_, activation='softmax'))
+
+    return model
 
 
 def create_pipeline(
@@ -1848,26 +2145,30 @@ def eval_model(
         *,
         y_test: np.ndarray,
         y_pred: np.ndarray,
-        pos_label: Union[int, str, bool] = 1,
-        pos_display: str = 'Class 1',
-        neg_display: str = 'Class 0',
-        class_type: str = 'binary',
+        class_map: Dict[Any, Any] = None,
         estimator: Optional[Any] = None,
         x_test: Optional[np.ndarray] = None,
+        class_type: Optional[str] = None,
+        pos_label: Optional[Any] = 1,
         threshold: float = 0.5,
+        multi_class: str = 'ovr',
+        average: str = 'macro',
         title: Optional[str] = None,
         model_name: str = 'Model',
         class_weight: Optional[str] = None,
-        decimal: int = 4,
+        decimal: int = 2,
+        bins: int = 10,
+        bin_strategy: str = None,
         plot: bool = False,
         figsize: Tuple[int, int] = (12, 11),
-        figmulti: float = 1.5,
+        figmulti: float = 1.7,
+        conf_fontsize: int = 14,
         return_metrics: bool = False,
         output: bool = True,
         debug: bool = False
 ) -> Optional[Dict[str, Union[int, float]]]:
     """
-    Produce a detailed evaluation report for a classification model.
+    Evaluate a classification model's performance and plot results.
 
     This function provides a comprehensive evaluation of a binary or multi-class
     classification model based on `y_test` (the actual target values) and `y_pred`
@@ -1876,21 +2177,23 @@ def eval_model(
     `plot` is True: Confusion Matrix, Histogram of Predicted Probabilities, ROC
     Curve, and Precision-Recall Curve.
 
-    If `class_type` is 'binary' (default), it will treat this as a binary
-    classification. If `class_type` is 'multi', it will treat this as a multi-class
-    problem. To plot the curves or adjust the `threshold` (default 0.5), both
-    `X_test` and `estimator` must be provided. These are required for two Scikit
-    functions called from within: `roc_auc_score` and `predict_proba`.
+    If `class_type` is 'binary', it will treat this as a binary classification.
+    If `class_type` is 'multi', it will treat this as a multi-class problem. If
+    `class_type` is not specified, it will be detected based on the number of
+    unique values in `y_test`. To plot the curves or adjust the `threshold`
+    (default 0.5), both `x_test` and `estimator` must be provided so that
+    proababilities can be calculated.
+
+    For binary classification, `pos_label` is required. This defaults to 1 as an
+    integer, but can be set to any value that matches one of the values in
+    `y_test` and `y_pred`. The `class_map` can be used to provide display names
+    for the classes. If not provided, the actual class values will be used.
 
     A number of classification metrics are shown in the report: Accuracy,
     Precision, Recall, F1, and ROC AUC. In addition, for binary classification,
     True Positive Rate, False Positive Rate, True Negative Rate, and False
-    Negative Rate are shown.
-
-    The `pos_label` (default is 1) can be adjusted to whatever value should be
-    treated as the positive class in the binary classification scenario. This
-    should match one of the values in `y_test` and `preds`. For readability,
-    class display names can be set with `pos_display` and `neg_display`.
+    Negative Rate are shown. The metrics are calculated at the default threshold
+    of 0.5, but can be adjusted with the `threshold` parameter.
 
     You can customize the `title` of the report completely, or pass the
     `model_name` and it will be displayed in a dynamically generated title. You
@@ -1903,7 +2206,7 @@ def eval_model(
     with a 'balanced' class_weight, and now want to pass that to this report to
     see the effects.
 
-    A dictionary of the metrics can be returned if `return_metrics` is True, and
+    A dictionary of metrics can be returned if `return_metrics` is True, and
     the output can be disabled by setting `output` to False. These are used by
     parent functions (ex: `compare_models`) to gather the data into a DataFrame
     of the results.
@@ -1917,53 +2220,75 @@ def eval_model(
     Parameters
     ----------
     y_test : np.ndarray
-        True labels for the test set.
+        The true labels of the test set.
     y_pred : np.ndarray
-        Predicted labels for the test set.
-    pos_label : Union[int, str, bool], optional
-        Data value corresponding to the positive class label. Default is 1.
-    pos_display : str, optional
-        Name of the positive class label. Default is 'Class 1'.
-    neg_display : str, optional
-        Name of the negative class label. Default is 'Class 0'.
-    class_type : str, optional
-        Type of classification. Default is 'binary'. Other option is 'multi'.
-    estimator : estimator object, optional
-        The trained model estimator. Required for plotting curves or using a
-        custom threshold. Default is None.
+        The predicted labels of the test set.
+    class_map : Dict[Any, Any], optional
+        A dictionary mapping class labels to their string representations.
+        Default is None.
+    estimator : Any, optional
+        The trained estimator object used for prediction. Required for
+        generating probabilities. Default is None.
     x_test : np.ndarray, optional
-        Feature data for the test set. Required for plotting curves or using a
-        custom threshold. Default is None.
+        The test set features. Required for generating probabilities.
+        Default is None.
+    class_type : str, optional
+        The type of classification problem. Can be 'binary' or 'multi'.
+        If not provided, it will be inferred from the number of unique labels.
+        Default is None.
+    pos_label : Any, optional
+        The positive class label for binary classification.
+        Default is 1.
     threshold : float, optional
-        Threshold for classification. Default is 0.5.
+        The threshold for converting predicted probabilities to class labels.
+        Default is 0.5.
+    multi_class : str, optional
+        The method for handling multi-class ROC AUC calculation.
+        Can be 'ovr' (one-vs-rest) or 'ovo' (one-vs-one).
+        Default is 'ovr'.
+    average : str, optional
+        The averaging method for multi-class classification metrics.
+        Can be 'macro', 'micro', 'weighted', or 'samples'.
+        Default is 'macro'.
     title : str, optional
-        Title for the classification report. Default is None.
-    model_name : str
-        Included in a dynamic title and some plots. Default is 'Model'.
+        The title for the plots. Default is None.
+    model_name : str, optional
+        The name of the model for labeling the plots. Default is 'Model'.
     class_weight : str, optional
-        Class weight parameter if passed in from a parent function. For display
-        purposes only on the report. For this to have an effect, it has to be
-        used in model training. Default is None.
+        The class weight settings used for training the model.
+        Default is None.
     decimal : int, optional
-        Number of decimal places for metrics in the report. Default is 4.
+        The number of decimal places to display in the output and plots.
+        Default is 4.
+    bins : int, optional
+        The number of bins for the predicted probabilities histogram when
+        `bin_strategy` is None. Default is 10.
+    bin_strategy : str, optional
+        The strategy for determining the number of bins for the predicted
+        probabilities histogram. Can be 'sqrt', 'sturges', 'rice', 'freed',
+        'scott', or 'doane'. Default is None.
     plot : bool, optional
-        Whether to plot the evaluation graphs. Default is False.
+        Whether to display the evaluation plots. Default is False.
     figsize : Tuple[int, int], optional
-        Size of the plots. Default is (12, 11).
+        The figure size for the plots in inches. Default is (12, 11).
     figmulti : float, optional
-        Multiplier for adjusting the size of the plots. Default is 1.5.
+        The multiplier for the figure size in multi-class classification.
+        Default is 1.7.
+    conf_fontsize : int, optional
+        The font size for the numbers in the confusion matrix. Default is 14.
     return_metrics : bool, optional
-        Whether to return the evaluation metrics as a dictionary. Default is False.
+        Whether to return the evaluation metrics as a dictionary.
+        Default is False.
     output : bool, optional
-        Whether to display the evaluation report and plots. Default is True.
+        Whether to print the evaluation results. Default is True.
     debug : bool, optional
-        Flag to show debugging information.
+        Whether to print debug information. Default is False.
 
     Returns
     -------
     metrics : Dict[str, Union[int, float]], optional
         A dictionary containing the evaluation metrics. Returned only if
-        `return_metrics` is True.
+        `return_metrics` is True and the classification type is binary.
 
     Examples
     --------
@@ -1972,7 +2297,9 @@ def eval_model(
     >>> from sklearn.datasets import make_classification
     >>> from sklearn.model_selection import train_test_split
     >>> from sklearn.svm import SVC
-    >>> X, y = make_classification(n_samples=1000, n_classes=2, random_state=42)
+    >>> X, y = make_classification(n_samples=1000, n_classes=2, weights=[0.4, 0.6],
+    ...                            random_state=42)
+    >>> class_map = {0: 'Malignant', 1: 'Benign'}
     >>> X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2,
     ...                                                     random_state=42)
     >>> model = SVC(kernel='linear', probability=True, random_state=42)
@@ -1980,106 +2307,224 @@ def eval_model(
     SVC(kernel='linear', probability=True, random_state=42)
     >>> y_pred = model.predict(X_test)
 
-    Example 1: Basic evaluation with default parameters, no plots:
+    Example 1: Basic evaluation with default settings:
 
-    >>> eval_model(y_test=y_test, y_pred=y_pred, model_name='SVC',
-    ...            pos_label=1, pos_display='Class 1',
-    ...            neg_display='Class 0')  #doctest: +NORMALIZE_WHITESPACE
+    >>> eval_model(y_test=y_test, y_pred=y_pred)  #doctest: +NORMALIZE_WHITESPACE
     <BLANKLINE>
-    SVC Binary Classification Report
+    Binary Classification Report
     <BLANKLINE>
                   precision    recall  f1-score   support
     <BLANKLINE>
-         Class 0     0.8252    0.9140    0.8673        93
-         Class 1     0.9175    0.8318    0.8725       107
+               0       0.76      0.74      0.75        72
+               1       0.85      0.87      0.86       128
     <BLANKLINE>
-        accuracy                         0.8700       200
-       macro avg     0.8714    0.8729    0.8699       200
-    weighted avg     0.8746    0.8700    0.8701       200
+        accuracy                           0.82       200
+       macro avg       0.81      0.80      0.80       200
+    weighted avg       0.82      0.82      0.82       200
     <BLANKLINE>
-                   Predicted:Class 0   Class 1
-    Actual: Class 0          85        8
-    Actual: Class 1          18        89
+                   Predicted:0         1
+    Actual: 0                53        19
+    Actual: 1                17        111
     <BLANKLINE>
-    True Positive Rate / Sensitivity: 0.8318
-    True Negative Rate / Specificity: 0.914
-    False Positive Rate / Fall-out: 0.086
-    False Negative Rate / Miss Rate: 0.1682
+    True Positive Rate / Sensitivity: 0.87
+    True Negative Rate / Specificity: 0.74
+    False Positive Rate / Fall-out: 0.26
+    False Negative Rate / Miss Rate: 0.13
     <BLANKLINE>
-    Positive Class: Class 1 (1)
+    Positive Class: 1 (1)
     Threshold: 0.5
 
-    Example 2: Evaluation with custom threshold, plotting, and return the metrics:
+    Example 2: Evaluation with custom settings:
 
-    >>> svc_metrics = eval_model(y_test=y_test, y_pred=y_pred, model_name='SVC',
-    ...            pos_label=1, pos_display='Class 1', neg_display='Class 0',
-    ...            estimator=model, x_test=X_test, threshold=0.7, plot=True,
-    ...            return_metrics=True)  #doctest: +NORMALIZE_WHITESPACE
+    >>> eval_model(y_test=y_test, y_pred=y_pred, estimator=model, x_test=X_test,
+    ...            class_type='binary', class_map=class_map, pos_label=0,
+    ...            threshold=0.35, model_name='SVM', class_weight='balanced',
+    ...            decimal=4, plot=True, figsize=(13, 13), conf_fontsize=18,
+    ...            bins=20)   #doctest: +NORMALIZE_WHITESPACE
     <BLANKLINE>
-    SVC Binary Classification Report
+    SVM Binary Classification Report
     <BLANKLINE>
                   precision    recall  f1-score   support
     <BLANKLINE>
-         Class 0     0.7154    0.9462    0.8148        93
-         Class 1     0.9351    0.6729    0.7826       107
+          Benign     0.9545    0.8203    0.8824       128
+       Malignant     0.7444    0.9306    0.8272        72
     <BLANKLINE>
-        accuracy                         0.8000       200
-       macro avg     0.8253    0.8096    0.7987       200
-    weighted avg     0.8329    0.8000    0.7976       200
+        accuracy                         0.8600       200
+       macro avg     0.8495    0.8754    0.8548       200
+    weighted avg     0.8789    0.8600    0.8625       200
     <BLANKLINE>
-    ROC AUC: 0.9231
+    ROC AUC: 0.9220
     <BLANKLINE>
-                   Predicted:Class 0   Class 1
-    Actual: Class 0          88        5
-    Actual: Class 1          35        72
+                   Predicted:1         0
+    Actual: 1                105       23
+    Actual: 0                5         67
     <BLANKLINE>
-    True Positive Rate / Sensitivity: 0.6729
-    True Negative Rate / Specificity: 0.9462
-    False Positive Rate / Fall-out: 0.0538
-    False Negative Rate / Miss Rate: 0.3271
+    True Positive Rate / Sensitivity: 0.9306
+    True Negative Rate / Specificity: 0.8203
+    False Positive Rate / Fall-out: 0.1797
+    False Negative Rate / Miss Rate: 0.0694
     <BLANKLINE>
-    Positive Class: Class 1 (1)
-    Threshold: 0.7
-    >>> metrics_df = pd.DataFrame.from_dict(svc_metrics, orient='index', columns=['Value'])
-    >>> print(metrics_df)
-                       Value
-    True Positives   72.0000
-    False Positives   5.0000
-    True Negatives   88.0000
-    False Negatives  35.0000
-    TPR               0.6729
-    TNR               0.9462
-    FPR               0.0538
-    FNR               0.3271
+    Positive Class: Malignant (0)
+    Class Weight: balanced
+    Threshold: 0.35
+
+    Example 3: Evaluate model with no output and return a dictionary:
+
+    >>> metrics = eval_model(y_test=y_test, y_pred=y_pred, estimator=model,
+    ...            x_test=X_test, class_map=class_map, pos_label=0,
+    ...            return_metrics=True, output=False)
+    >>> print(metrics)
+    {'True Positives': 53, 'False Positives': 17, 'True Negatives': 111, 'False Negatives': 19, 'TPR': 0.7361111111111112, 'TNR': 0.8671875, 'FPR': 0.1328125, 'FNR': 0.2638888888888889, 'Benign': {'precision': 0.8538461538461538, 'recall': 0.8671875, 'f1-score': 0.8604651162790697, 'support': 128.0}, 'Malignant': {'precision': 0.7571428571428571, 'recall': 0.7361111111111112, 'f1-score': 0.7464788732394366, 'support': 72.0}, 'accuracy': 0.82, 'macro avg': {'precision': 0.8054945054945055, 'recall': 0.8016493055555556, 'f1-score': 0.8034719947592532, 'support': 200.0}, 'weighted avg': {'precision': 0.819032967032967, 'recall': 0.82, 'f1-score': 0.819430068784802, 'support': 200.0}, 'ROC AUC': 0.9219835069444444, 'Threshold': 0.5, 'Class Type': 'binary', 'Class Map': {0: 'Malignant', 1: 'Benign'}, 'Positive Label': 0, 'Title': None, 'Model Name': 'Model', 'Class Weight': None, 'Multi-Class': 'ovr', 'Average': 'macro'}
+
+    Prepare multi-class example data:
+
+    >>> from sklearn.datasets import load_iris
+    >>> X, y = load_iris(return_X_y=True)
+    >>> X = pd.DataFrame(X, columns=['sepal_length', 'sepal_width', 'petal_length',
+    ...                              'petal_width'])
+    >>> y = pd.Series(y)
+    >>> class_map = {0: 'Setosa', 1: 'Versicolor', 2: 'Virginica'}
+    >>> X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2,
+    ...                                    random_state=42)
+    >>> model = SVC(kernel='linear', probability=True, random_state=42)
+    >>> model.fit(X_train, y_train)
+    SVC(kernel='linear', probability=True, random_state=42)
+    >>> y_pred = model.predict(X_test)
+
+    Example 4: Evaluate multi-class model with default settings:
+
+    >>> metrics = eval_model(y_test=y_test, y_pred=y_pred, class_map=class_map,
+    ...               return_metrics=True)   #doctest: +NORMALIZE_WHITESPACE
+    <BLANKLINE>
+    Multi-Class Classification Report
+    <BLANKLINE>
+                  precision    recall  f1-score   support
+    <BLANKLINE>
+          Setosa       1.00      1.00      1.00        10
+      Versicolor       1.00      1.00      1.00         9
+       Virginica       1.00      1.00      1.00        11
+    <BLANKLINE>
+        accuracy                           1.00        30
+       macro avg       1.00      1.00      1.00        30
+    weighted avg       1.00      1.00      1.00        30
+    <BLANKLINE>
+    Predicted   Setosa  Versicolor  Virginica
+    Actual
+    Setosa          10           0          0
+    Versicolor       0           9          0
+    Virginica        0           0         11
+    <BLANKLINE>
+    >>> print(metrics)
+    {'Setosa': {'precision': 1.0, 'recall': 1.0, 'f1-score': 1.0, 'support': 10.0}, 'Versicolor': {'precision': 1.0, 'recall': 1.0, 'f1-score': 1.0, 'support': 9.0}, 'Virginica': {'precision': 1.0, 'recall': 1.0, 'f1-score': 1.0, 'support': 11.0}, 'accuracy': 1.0, 'macro avg': {'precision': 1.0, 'recall': 1.0, 'f1-score': 1.0, 'support': 30.0}, 'weighted avg': {'precision': 1.0, 'recall': 1.0, 'f1-score': 1.0, 'support': 30.0}, 'ROC AUC': None, 'Threshold': 0.5, 'Class Type': 'multi', 'Class Map': {0: 'Setosa', 1: 'Versicolor', 2: 'Virginica'}, 'Positive Label': None, 'Title': None, 'Model Name': 'Model', 'Class Weight': None, 'Multi-Class': 'ovr', 'Average': 'macro'}
     """
-    # Check if plotting or custom threshold is requested
-    if plot or threshold != 0.5:
-        # Raise an error if estimator or x_test is not provided for custom threshold or plotting
-        if estimator is None or x_test is None:
-            raise ValueError("Both estimator and x_test must be provided for custom threshold or plotting curves.")
+    # Initialize debugging, controlled via 'debug' parameter
+    db = DebugPrinter(debug = debug)
+    db.print('-' * 40)
+    db.print('START eval_model')
+    db.print('-' * 40, '\n')
+    db.print('y_test shape:', y_test.shape)
+    db.print('y_pred shape:', y_pred.shape)
+    db.print('class_map:', class_map)
+    db.print('pos_label:', pos_label)
+    db.print('class_type:', class_type)
+    db.print('estimator:', estimator)
+    if x_test is not None:
+        db.print('x_test shape:', x_test.shape)
+    else:
+        db.print('x_test:', x_test)
+    db.print('threshold:', threshold)
 
-        # Get predicted probabilities based on the class type
-        if class_type == 'binary':
-            probabilities = estimator.predict_proba(x_test)[:, 1]  # Get probabilities for the positive class
-        elif class_type == 'multi':
-            probabilities = estimator.predict_proba(x_test)  # Get probabilities for all classes
+    # Convert y_test DataFrame to a Series if it's not already
+    if isinstance(y_test, pd.DataFrame):
+        db.print('\nConverting y_test DataFrame to Series...')
+        db.print('y_test shape before:', y_test.shape)
+        y_test = y_test.squeeze()
+        db.print('y_test shape after:', y_test.shape)
 
-        # Apply custom threshold for binary classification
-        if class_type == 'binary' and threshold != 0.5:
-            # Handle different shapes of the probabilities array
-            if len(probabilities.shape) == 2 and probabilities.shape[1] > 1:
-                y_pred = np.array([1 if prob >= threshold else 0 for prob in probabilities[:, 1]])
-            elif len(probabilities.shape) == 1 or probabilities.shape[1] == 1:
-                y_pred = np.array([1 if prob >= threshold else 0 for prob in probabilities])
-            else:
-                raise ValueError("Unexpected shape for probabilities array")
+    # Convert y_test DataFrame to a Series if it's not already
+    if isinstance(y_pred, pd.DataFrame):
+        db.print('\nConverting y_pred DataFrame to Series...')
+        db.print('y_pred shape before:', y_pred.shape)
+        y_pred = y_pred.squeeze()
+        db.print('y_pred shape after:', y_pred.shape)
+
+    # Get the unique labels and display labels for the confusion matrix
+    if class_map is not None:
+        # Make sure class_map is a dictionary
+        if isinstance(class_map, dict):
+            db.print('\nGetting labels from class_map...')
+            unique_labels = list(class_map.keys())
+            display_labels = list(class_map.values())
+        else:
+            raise TypeError("class_map must be a dictionary")
+
+        # Make sure every unique_label has a corresponding entry in y_test
+        missing_labels = set(np.unique(y_test)) - set(unique_labels)
+        if missing_labels:
+            db.print('y_test[:5]:', list(y_test[:5]))
+            db.print('set(unique_labels):', set(unique_labels))
+            db.print('set(np.unique(y_test)):', set(np.unique(y_test)))
+            db.print('missing_labels:', missing_labels)
+            raise ValueError(f"The following labels in y_test are missing from class_map: {missing_labels}")
+    else:
+        db.print('\nGetting labels from unique values in y_test...')
+        unique_labels = np.unique(y_test)
+        display_labels = [str(label) for label in unique_labels]
+        db.print('Creating class_map...')
+        class_map = {label: str(label) for label in unique_labels}
+        db.print('class_map:', class_map)
+    db.print('unique_labels:', unique_labels)
+    db.print('display_labels:', display_labels)
+
+    # Count the number of classes
+    num_classes = len(unique_labels)
+    db.print('num_classes:', num_classes)
+
+    # If class_type is not passed, auto-detect based on unique values of y_test
+    if class_type is None:
+        if num_classes > 2:
+            class_type = 'multi'
+        elif num_classes == 2:
+            class_type = 'binary'
+        else:
+            raise ValueError(f"Check data, cannot classify. Number of classes in y_test ({num_classes}) is less than 2: {unique_labels}")
+        db.print(f"\nClassification type detected: {class_type}")
+        db.print("Unique values in y:", num_classes)
+    elif class_type not in ['binary', 'multi']:
+        # If class type is invalid, raise an error
+        raise ValueError(f"Class type '{class_type}' is invalid, must be 'binary' or 'multi'. Number of classes in y_test: {num_classes}, unique labels: {unique_labels}")
+
+    # Check to ensure num_classes matches the passed class_type
+    if class_type == 'binary' and num_classes != 2:
+        raise ValueError(f"Class type is {class_type}, but number of classes in y_test ({num_classes}) is not 2: {unique_labels}")
+    elif class_type == 'multi' and num_classes < 3:
+        raise ValueError(f"Class type is {class_type}, but number of classes in y_test ({num_classes}) is less than 3: {unique_labels}")
+    elif num_classes < 2:
+        raise ValueError(f"Check data, cannot classify. Class type is {class_type}, and number of classes in y_test ({num_classes}) is less than 2: {unique_labels}")
 
     # Evaluation for multi-class classification
     if class_type == 'multi':
-        unique_labels = np.unique(y_test)
-        num_classes = len(unique_labels)
+
+        # Set pos_label to None for multi-class
+        pos_label = None
+
+        # Calculate confusion matrix
         cm = confusion_matrix(y_test, y_pred)
-        roc_auc = roc_auc_score(y_test, estimator.predict_proba(x_test), multi_class='ovr')
+
+        # Run the classification report
+        db.print('\nRun the Classification Report...')
+        class_report = classification_report(y_test, y_pred, digits=decimal, target_names=display_labels,
+                                       zero_division=0, output_dict=True)
+        db.print('class_report:', class_report)
+
+        # Calculate ROC AUC if we have x_test and estimator
+        if x_test is not None and estimator is not None:
+            db.print('\nCalculating ROC AUC...')
+            roc_auc = roc_auc_score(y_test, estimator.predict_proba(x_test), multi_class=multi_class, average=average)
+        else:
+            roc_auc = None
+        db.print('roc_auc:', roc_auc)
+
         if output:
             # Display the best title we can create
             if title is not None:
@@ -2088,24 +2533,125 @@ def eval_model(
                 print(f"\n{model_name} Multi-Class Classification Report\n")
             else:
                 print(f"\nMulti-Class Classification Report\n")
-            print(classification_report(y_test, y_pred, digits=decimal, target_names=[str(label) for label in unique_labels]))
-            print("ROC AUC:", round(roc_auc, decimal))
+            # Display the classification report
+            print(classification_report(y_test, y_pred, digits=decimal, target_names=display_labels, zero_division=0))
+
+            # Display the ROC AUC
+            if roc_auc is not None:
+                if isinstance(roc_auc, float):
+                    print(f'ROC AUC: {round(roc_auc, decimal)}\n')
+                elif isinstance(roc_auc, np.ndarray):
+                    # It's an array, handle different cases
+                    if roc_auc.size == 1:
+                        print(f'ROC AUC: {round(roc_auc[0], decimal)}\n')
+                    else:
+                        # If it's an array with multiple elements, print the mean value, rounded
+                        mean_roc_auc = np.mean(roc_auc)
+                        print(f'ROC AUC (mean): {round(mean_roc_auc, decimal)}\n')
+                else:
+                    # Print it raw
+                    print(f'ROC AUC: {roc_auc}\n')
+
+            # Display the class weight for reference only
             if class_weight is not None:
-                print("Class Weight:", class_weight)
+                print(f'Class Weight: {class_weight}\n')
+
+            # Create a DataFrame from the confusion matrix
+            df_cm = pd.DataFrame(cm, index=display_labels, columns=display_labels)
+            df_cm.index.name = 'Actual'
+            df_cm.columns.name = 'Predicted'
+            print(f'{df_cm}\n')
+
+    # Pre-processing for binary classification
+    if class_type == 'binary':
+
+        # Check if pos_label is in unique_labels
+        if pos_label not in unique_labels:
+            db.print('pos_label:', pos_label)
+            db.print('type(pos_label):', type(pos_label).__name__)
+            db.print('unique_labels:', unique_labels)
+            db.print('unique_labels[0]:', unique_labels[0])
+            db.print('unique_labels[1]:', unique_labels[1])
+            db.print('type(unique_labels[0]):', type(unique_labels[0]).__name__)
+            db.print('type(unique_labels[1]):', type(unique_labels[1]).__name__)
+            raise ValueError(f"Positive label: {pos_label} ({type(pos_label).__name__}) is not in y_test unique values: {unique_labels}. Please specify the correct 'pos_label'.")
+
+        # Encode labels if binary classification problem
+        db.print('\nEncoding labels for binary classification...')
+
+        # Assign neg_label based on pos_label
+        neg_label = np.setdiff1d(unique_labels, [pos_label])[0]
+        db.print('pos_label:', pos_label)
+        db.print('neg_label:', neg_label)
+
+        # Create a label_map for encoding
+        label_map = {neg_label: 0, pos_label: 1}
+        db.print('label_map:', label_map)
+
+        # Encode new labels as 0 and 1
+        db.print('\nEncoding y_test and y_pred...')
+        y_test_enc = np.array([label_map[label] for label in y_test])
+        y_pred_enc = np.array([label_map[label] for label in y_pred])
+        db.print('y_test[:5]:', list(y_test[:5]))
+        db.print('y_test_enc[:5]:', y_test_enc[:5])
+        db.print('y_pred[:5]:', y_pred[:5])
+        db.print('y_pred_enc[:5]:', y_pred_enc[:5])
+        db.print('Overwriting y_test and y_pred...')
+        y_test = y_test_enc
+        y_pred = y_pred_enc
+        db.print('y_test[:5]:', list(y_test[:5]))
+        db.print('y_pred[:5]:', y_pred[:5])
+
+        # Create a map for the new labels
+        db.print('\nGetting the display labels...')
+        pos_display = class_map[pos_label]
+        neg_display = class_map[neg_label]
+        db.print('pos_display:', pos_display)
+        db.print('neg_display:', neg_display)
+        if class_map is not None:
+            display_map = {0: neg_display, 1: pos_display}
+        else:
+            display_map = {0: str(neg_label), 1: str(pos_label)}
+        db.print('display_map:', display_map)
+
+        # Update the unique labels and display labels for the confusion matrix
+        db.print('\nUpdating labels from display_map...')
+        unique_labels = list(display_map.keys())
+        display_labels = list(display_map.values())
+        db.print('New unique_labels:', unique_labels)
+        db.print('New display_labels:', display_labels)
+
+    # Calculate the probabilities
+    if class_type == 'binary' and x_test is not None and estimator is not None:
+        db.print('\nCalculating probabilities...')
+        pos_class_index = np.where(estimator.classes_ == pos_label)[0][0]
+        db.print('estimator.classes_:', estimator.classes_)
+        db.print('pos_label:', pos_label)
+        db.print('pos_class_index:', pos_class_index)
+        probabilities = estimator.predict_proba(x_test)[:, pos_class_index]
+        all_probabilities = estimator.predict_proba(x_test)
+        db.print('probabilities[:5]:', probabilities[:5])
+        db.print('all_probabilities[:5]:', all_probabilities[:5])
+        db.print('all_probabilities shape:', np.shape(all_probabilities))
+
+        # Apply the threshold to the probabilities
+        if plot or threshold != 0.5:
+            db.print(f'\nApplying threshold {threshold} to probabilities...')
+            y_pred_thresh = (probabilities >= threshold).astype(int)
+            db.print('y_pred[:5]:', y_pred[:5])
+            db.print('y_pred_thresh[:5]:', y_pred_thresh[:5])
+            db.print('Overwriting y_pred with y_pred_thres...')
+            y_pred = y_pred_thresh
+            db.print('y_pred[:5]:', y_pred[:5])
+        else:
+            db.print(f'\nUsing default threshold of {threshold}...')
+        db.print('plot:', plot)
+    else:
+        probabilities = None
+        db.print(f'\nSkipping probabilities. class_type: {class_type}, x_test shape: {np.shape(x_test)}, estimator: {estimator.__class__.__name__}')
 
     # Evaluation for binary classification
-    elif class_type == 'binary':
-        cm = confusion_matrix(y_test, y_pred)
-        if x_test is not None:
-            roc_auc = roc_auc_score(y_test, estimator.predict_proba(x_test)[:, 1])
-
-        # Calculate evaluation metrics
-        TN, FP, FN, TP = cm.ravel()
-        FPR = FP / (FP + TN)
-        TPR = TP / (TP + FN)
-        TNR = TN / (TN + FP)
-        FNR = FN / (FN + TP)
-
+    if class_type == 'binary':
         if output:
             # Display the best title we can create
             if title is not None:
@@ -2115,84 +2661,191 @@ def eval_model(
             else:
                 print(f"\nBinary Classification Report\n")
 
-            # Run the Classification report
-            print(classification_report(y_test, y_pred, digits=decimal, target_names=[str(neg_display), str(pos_display)]))
-            if x_test is not None:
-                print("ROC AUC:", round(roc_auc, decimal), "\n")
+        # Run the classification report
+        db.print('\nRun the Classification Report...')
+        class_report = classification_report(y_test, y_pred, labels=unique_labels, target_names=display_labels,
+                                       digits=decimal, zero_division=0, output_dict=True)
+        db.print('class_report:', class_report)
+        if output:
+            print(classification_report(y_test, y_pred, labels=unique_labels, target_names=display_labels,
+                                        digits=decimal, zero_division=0))
 
-            # Print confusion matrix
-            print(f"{'':<15}{'Predicted:':<10}{neg_display:<10}{pos_display:<10}")
-            print(f"{'Actual: ' + str(neg_display):<25}{cm[0][0]:<10}{cm[0][1]:<10}")
-            print(f"{'Actual: ' + str(pos_display):<25}{cm[1][0]:<10}{cm[1][1]:<10}")
+        # Calculate the confusion matrix
+        db.print('\nCalculating confusion matrix and metrics...')
+        cm = confusion_matrix(y_test, y_pred, labels=unique_labels)
 
-            # Print evaluation metrics
-            print("\nTrue Positive Rate / Sensitivity:", round(TPR, decimal))
-            print("True Negative Rate / Specificity:", round(TNR, decimal))
-            print("False Positive Rate / Fall-out:", round(FPR, decimal))
-            print("False Negative Rate / Miss Rate:", round(FNR, decimal))
-            print(f"\nPositive Class: {pos_display} ({pos_label})")
-            if class_weight is not None:
-                print("Class Weight:", class_weight)
-            print("Threshold:", threshold)
+        # Calculate the binary metrics
+        tn, fp, fn, tp = cm.ravel()
+        tpr = tp / (tp + fn)
+        fpr = fp / (fp + tn)
+        tnr = tn / (tn + fp)
+        fnr = fn / (fn + tp)
+        db.print('cm:\n', cm)
+        db.print('\ncm.ravel:', cm.ravel())
+        db.print(f'TN: {tn}')
+        db.print(f'FP: {fp}')
+        db.print(f'FN: {fn}')
+        db.print(f'TP: {tp}')
 
-
-        # Store evaluation metrics in a dictionary
-        metrics = {
-            "True Positives": TP,
-            "False Positives": FP,
-            "True Negatives": TN,
-            "False Negatives": FN,
-            "TPR": round(TPR, decimal),
-            "TNR": round(TNR, decimal),
-            "FPR": round(FPR, decimal),
-            "FNR": round(FNR, decimal),
+        binary_metrics = {
+            "True Positives": tp,
+            "False Positives": fp,
+            "True Negatives": tn,
+            "False Negatives": fn,
+            "TPR": tpr,
+            "TNR": tnr,
+            "FPR": fpr,
+            "FNR": fnr,
         }
 
-    # Plot the charts if requested
-    if plot and output:
-        blue = (0.12156862745098039, 0.4666666666666667, 0.7058823529411765)  # Define a blue color for plots
+    # Calculate the ROC AUC score if binary classification with probabilities
+    if class_type == 'binary' and probabilities is not None:
 
+        # Calculate ROC AUC score
+        db.print('\nCalculating ROC AUC score...')
+        roc_auc = roc_auc_score(y_test, probabilities, labels=unique_labels)
+        db.print('y_test[:5]:', y_test[:5])
+        db.print('probabilities[:5]:', probabilities[:5])
+        db.print('unique_labels:', unique_labels)
+        if output:
+            print(f'ROC AUC: {roc_auc:.{decimal}f}\n')
+
+        # Calculate false positive rate, true positive rate, and thresholds for ROC curve
+        db.print('\nCalculating ROC curve...')
+        fpr_array, tpr_array, thresholds = roc_curve(y_test, probabilities, pos_label=1)
+        if len(thresholds) == 0 or len(fpr_array) == 0 or len(tpr_array) == 0:
+            raise ValueError(f"Error in ROC curve calculation, at least one empty array. fpr_array length: {len(fpr_array)}, tpr_array length: {len(tpr_array)}, thresholds length: {len(thresholds)}.")
+        db.print('y_test[:5]:', y_test[:5])
+        db.print('probabilities[:5]:', probabilities[:5])
+        db.print('Arrays from roc_curve:')
+        db.print('fpr_array[:5]:', fpr_array[:5])
+        db.print('tpr_array[:5]:', tpr_array[:5])
+        db.print('thresholds[:5]:', thresholds[:5])
+
+    # Print the binary classification output
+    if class_type == 'binary' and output:
+
+        # Print confusion matrix
+        print(f"{'':<15}{'Predicted:':<10}{neg_label:<10}{pos_label:<10}")
+        print(f"{'Actual: ' + str(neg_label):<25}{cm[0][0]:<10}{cm[0][1]:<10}")
+        print(f"{'Actual: ' + str(pos_label):<25}{cm[1][0]:<10}{cm[1][1]:<10}")
+
+        # Print evaluation metrics
+        print("\nTrue Positive Rate / Sensitivity:", round(tpr, decimal))
+        print("True Negative Rate / Specificity:", round(tnr, decimal))
+        print("False Positive Rate / Fall-out:", round(fpr, decimal))
+        print("False Negative Rate / Miss Rate:", round(fnr, decimal))
+        print(f"\nPositive Class: {pos_display} ({pos_label})")
+        if class_weight is not None:
+            print("Class Weight:", class_weight)
+        print("Threshold:", threshold)
+
+    # Plot the evaluation metrics
+    if plot and output:
+
+        # Define a blue color for plots
+        blue = (0.12156862745098039, 0.4666666666666667, 0.7058823529411765)
+
+        # Just plot a confusion matrix for multi-class
         if class_type == 'multi':
+
             # Calculate the figure size for multi-class plots
             multiplier = figmulti
             max_size = 20
-            size = min(num_classes * multiplier, max_size)
+            size = min(len(unique_labels) * multiplier, max_size)
             figsize = (size, size)
 
             # Create a figure and axis for multi-class confusion matrix
             fig, ax1 = plt.subplots(1, 1, figsize=figsize)
 
             # Plot the confusion matrix
-            cm_display = ConfusionMatrixDisplay(cm, display_labels=unique_labels)
+            cm_display = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=display_labels)
             cm_display.plot(cmap='Blues', ax=ax1, colorbar=False)
             for text in cm_display.text_:
                 for t in text:
-                    t.set_fontsize(10)
+                    t.set_fontsize(conf_fontsize - 2)  # Reduce font size for multi-class
             ax1.set_title(f'Confusion Matrix', fontsize=18, pad=15)
             ax1.set_xlabel('Predicted Label', fontsize=14, labelpad=15)
             ax1.set_ylabel('True Label', fontsize=14, labelpad=10)
             ax1.tick_params(axis='both', which='major', labelsize=10)
 
+            plt.tight_layout()
             plt.show()
 
-        elif class_type == 'binary':
+        # Just plot a confusion matrix for binary classification without probabilities
+        elif class_type == 'binary' and probabilities is None:
+
+            # Calculate the figure size for a single-chart plot
+            multiplier = figmulti
+            max_size = 20
+            size = min(len(unique_labels) * multiplier, max_size) + 1.5  # Extra size for just 2 classes
+            figsize = (size, size)
+
+            # Create a figure and axis for a confusion matrix
+            fig, ax1 = plt.subplots(1, 1, figsize=figsize)
+
+            # Plot the confusion matrix
+            cm_display = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=display_labels)
+            cm_display.plot(cmap='Blues', ax=ax1, colorbar=False)
+            for text in cm_display.text_:
+                for t in text:
+                    t.set_fontsize(conf_fontsize)
+            ax1.set_title(f'Confusion Matrix', fontsize=18, pad=15)
+            ax1.set_xlabel('Predicted Label', fontsize=14, labelpad=15)
+            ax1.set_ylabel('True Label', fontsize=14, labelpad=10)
+            ax1.tick_params(axis='both', which='major', labelsize=10)
+
+            plt.tight_layout()
+            plt.show()
+
+        # Plot 4 charts for binary classification
+        elif class_type == 'binary' and probabilities is not None:
+
+            # Calculate the number of bins
+            if bin_strategy is not None:
+                # Calculate the number of bins based on the specified strategy
+                data_len = len(probabilities)
+                if bin_strategy == 'sqrt':
+                    num_bins = int(np.sqrt(data_len))
+                elif bin_strategy == 'sturges':
+                    num_bins = int(np.ceil(np.log2(data_len)) + 1)
+                elif bin_strategy == 'rice':
+                    num_bins = int(2 * data_len ** (1/3))
+                elif bin_strategy == 'freed':
+                    iqr = np.subtract(*np.percentile(probabilities, [75, 25]))
+                    bin_width = 2 * iqr * data_len ** (-1/3)
+                    num_bins = int(np.ceil((probabilities.max() - probabilities.min()) / bin_width))
+                elif bin_strategy == 'scott':
+                    std_dev = np.std(probabilities)
+                    bin_width = 3.5 * std_dev * data_len ** (-1/3)
+                    num_bins = int(np.ceil((probabilities.max() - probabilities.min()) / bin_width))
+                elif bin_strategy == 'doane':
+                    std_dev = np.std(probabilities)
+                    skewness = ((np.mean(probabilities) - np.median(probabilities)) / std_dev)
+                    sigma_g1 = np.sqrt(6 * (data_len - 2) / ((data_len + 1) * (data_len + 3)))
+                    num_bins = int(np.ceil(np.log2(data_len) + 1 + np.log2(1 + abs(skewness) / sigma_g1)))
+                else:
+                    raise ValueError("Invalid bin strategy, possible values of 'bin_strategy' are 'sqrt', 'sturges', 'rice', 'freed', 'scott', and 'doane'")
+            else:
+                # Use default behavior of bins=10 for X axis range of 0 to 1.0
+                num_bins = bins
+
             # Create a figure and subplots for binary classification plots
             fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=figsize)
 
-            # Plot the confusion matrix
-            cm_matrix = ConfusionMatrixDisplay(cm, display_labels=[neg_display, pos_display])
-            cm_matrix.plot(cmap='Blues', ax=ax1, colorbar=False)
+            # 1. Confusion Matrix
+            cm_matrix = ConfusionMatrixDisplay.from_predictions(y_true=y_test, y_pred=y_pred, labels=unique_labels,
+                            display_labels=display_labels, cmap='Blues', colorbar=False, normalize=None, ax=ax1)
             for text in cm_matrix.text_:
                 for t in text:
-                    t.set_fontsize(14)
-                    t.set_text(f"{int(float(t.get_text()))}")
+                    t.set_fontsize(conf_fontsize)
             ax1.set_title(f'Confusion Matrix', fontsize=18, pad=15)
             ax1.set_xlabel('Predicted Label', fontsize=14, labelpad=15)
             ax1.set_ylabel('True Label', fontsize=14, labelpad=10)
             ax1.tick_params(axis='both', which='major', labelsize=11)
 
-            # Plot the histogram of predicted probabilities
-            ax2.hist(probabilities, color=blue, edgecolor='black', alpha=0.7, label=f'{model_name} Probabilities')
+            # 2. Histogram of Predicted Probabilities
+            ax2.hist(probabilities, color=blue, edgecolor='black', alpha=0.7, bins=num_bins, label=f'{model_name} Probabilities')
             ax2.axvline(x=threshold, color='red', linestyle='--', linewidth=1, label=f'Threshold: {threshold:.{decimal}f}')
             ax2.set_title('Histogram of Predicted Probabilities', fontsize=18, pad=15)
             ax2.set_xlabel('Probability', fontsize=14, labelpad=15)
@@ -2200,27 +2853,13 @@ def eval_model(
             ax2.set_xticks(np.arange(0, 1.1, 0.1))
             ax2.legend()
 
-            # Calculate false positive rate, true positive rate, and thresholds for ROC curve
-            fpr, tpr, thresholds = roc_curve(y_test, probabilities, pos_label=pos_label)
-
-            # Plot the ROC curve
+            # 3. ROC Curve
             ax3.plot([0, 1], [0, 1], color='grey', linestyle=':', label='Chance Baseline')
-            RocCurveDisplay.from_estimator(estimator, x_test, y_test, pos_label=pos_label,
-                                           marker='.', ax=ax3, linewidth=2, label=f'{model_name} Curve',
-                                           color=blue, response_method='predict_proba')
-
-            # Plot the threshold point on the ROC curve
-            if threshold is not None:
-                closest_idx = np.argmin(np.abs(thresholds - threshold))
-                fpr_point = fpr[closest_idx]
-                tpr_point = tpr[closest_idx]
-
-                ax3.scatter(fpr_point, tpr_point, color='red', s=80, zorder=5, label=f'Threshold {threshold:.{decimal}f}')
-
-                ax3.axvline(x=fpr_point, ymax=tpr_point-0.025, color='red', linestyle='--', lw=1,
-                            label=f'TPR: {tpr_point:.{decimal}f}, FPR: {fpr_point:.{decimal}f}')
-                ax3.axhline(y=tpr_point, xmax=fpr_point+0.04, color='red', linestyle='--', lw=1)
-
+            ax3.plot(fpr_array, tpr_array, color=blue, marker='.', lw=2, label=f'{model_name} ROC Curve')
+            ax3.scatter(fpr, tpr, color='red', s=80, zorder=5, label=f'Threshold {threshold:.{decimal}f}')
+            ax3.axvline(x=fpr, ymax=tpr-0.027, color='red', linestyle='--', lw=1,
+                        label=f'TPR: {tpr:.{decimal}f}, FPR: {fpr:.{decimal}f}')
+            ax3.axhline(y=tpr, xmax=fpr+0.04, color='red', linestyle='--', lw=1)
             ax3.set_xticks(np.arange(0, 1.1, 0.1))
             ax3.set_yticks(np.arange(0, 1.1, 0.1))
             ax3.set_ylim(0,1.05)
@@ -2231,21 +2870,25 @@ def eval_model(
             ax3.set_ylabel('True Positive Rate', fontsize=14, labelpad=10)
             ax3.legend(loc='lower right')
 
-            # Calculate precision, recall, and thresholds for Precision-Recall curve
-            precision, recall, thresholds = precision_recall_curve(y_test, probabilities, pos_label=pos_label)
+            # 4. Precision-Recall Curve
+            db.print('\nCalculating precision-recall curve...')
+            db.print('y_test[:5]:', y_test[:5])
+            db.print('probabilities[:5]:', probabilities[:5])
+            db.print('pos_label:', pos_label)
+            precision_array, recall_array, _ = precision_recall_curve(y_test, probabilities, pos_label=1)
+            db.print('precision_array[:5]:', precision_array[:5])
+            db.print('recall_array[:5]:', recall_array[:5])
+            precision = class_report[pos_display]['precision']
+            recall = class_report[pos_display]['recall']
+            db.print('precision:', precision)
+            db.print('recall:', recall)
 
             # Plot the Precision-Recall curve
-            ax4.plot(recall, precision, marker='.', label=f'{model_name} Curve', color=blue)
-            if threshold is not None:
-                chosen_threshold = threshold
-                closest_point = np.argmin(np.abs(thresholds - chosen_threshold))
-                ax4.scatter(recall[closest_point], precision[closest_point], color='red', s=80, zorder=5,
-                            label=f'Threshold: {chosen_threshold:.{decimal}f}')
-                ax4.axvline(x=recall[closest_point], ymax=precision[closest_point]-0.025, color='red',
-                            linestyle='--', lw=1, label=f'Precision: {precision[closest_point]:.{decimal}f},'
-                                                        f'Recall: {recall[closest_point]:.{decimal}f}')
-                ax4.axhline(y=precision[closest_point], xmax=recall[closest_point]-0.025, color='red',
-                            linestyle='--', lw=1)
+            ax4.plot(recall_array, precision_array, marker='.', label=f'{model_name} Precision-Recall', color=blue)
+            ax4.scatter(recall, precision, color='red', s=80, zorder=5, label=f'Threshold: {threshold:.{decimal}f}')
+            ax4.axvline(x=recall, ymax=precision-0.025, color='red', linestyle='--', lw=1,
+                        label=f'Precision: {precision:.{decimal}f}, Recall: {recall:.{decimal}f}')
+            ax4.axhline(y=precision, xmax=recall-0.025, color='red', linestyle='--', lw=1)
             ax4.set_xticks(np.arange(0, 1.1, 0.1))
             ax4.set_yticks(np.arange(0, 1.1, 0.1))
             ax4.set_ylim(0,1.05)
@@ -2255,13 +2898,37 @@ def eval_model(
             ax4.set_xlabel('Recall', fontsize=14, labelpad=15)
             ax4.set_ylabel('Precision', fontsize=14, labelpad=10)
             ax4.legend(loc='lower left')
+
             plt.tight_layout()
             plt.show()
 
-    # Return a dictionary of metrics if requested
+    # Package up the metrics if requested
     if return_metrics:
-        return metrics
 
+        # Custom metrics dictionary
+        db.print('\nPackaging metrics dictionary...')
+        custom_metrics = {
+            "ROC AUC": roc_auc,
+            "Threshold": threshold,
+            "Class Type": class_type,
+            "Class Map": class_map,
+            "Positive Label": pos_label,
+            "Title": title,
+            "Model Name": model_name,
+            "Class Weight": class_weight,
+            "Multi-Class": multi_class,
+            "Average": average
+        }
+
+        # Assemble the final metrics based on class type
+        if class_type == 'binary':
+            metrics = {**binary_metrics, **class_report, **custom_metrics}
+        else:
+            metrics = {**class_report, **custom_metrics}
+        db.print('metrics:', metrics)
+
+        # Return a dictionary of metrics
+        return metrics
 
 def iterate_model(
         x_train: pd.DataFrame,
@@ -2679,7 +3346,7 @@ def iterate_model(
     # Get the current date and time
     current_time = datetime.now(pytz.timezone(timezone))
     timestamp = current_time.strftime(f'%b %d, %Y %I:%M %p {timezone}')
-    if show_time:
+    if show_time is True:
         print(f'{timestamp}\n')
 
     if cross:
@@ -3127,10 +3794,12 @@ def plot_results(
         metrics: Optional[Union[str, List[str]]] = None,
         select_metric: Optional[str] = None,
         select_criteria: str = 'max',
+        chart_type: str = 'line',
         decimal: int = 2,
         return_df: bool = False,
         x_column: str = 'Iteration',
         y_label: str = None,
+        rotation: int = 45,
         title: Optional[str] = None
 ) -> Optional[pd.DataFrame]:
     """
@@ -3174,6 +3843,9 @@ def plot_results(
     select_criteria : str, optional
         The criteria for selecting the best result. Can be either 'max' or 'min'.
         Required if `select_metric` is specified. Default is 'max'.
+    chart_type : str, optional
+        The type of chart to plot. Currently only 'line' or 'bar' is supported.
+        Default is 'line'.
     decimal : int, optional
         The number of decimal places to display in the plot and legend.
         Default is 2.
@@ -3188,6 +3860,8 @@ def plot_results(
         The title of the plot. If None, a default title will be generated
         from `select_metric` and `x_column`. If `select_metric` is also None, the
         title will be blank. Default is None.
+    rotation : int, optional
+        The rotation angle for the x-axis tick labels in degrees. Default is 45.
 
     Returns
     -------
@@ -3249,7 +3923,13 @@ def plot_results(
 
     # Start the plot
     plt.figure(figsize=(12, 6))
-    sns.lineplot(data=df_long, x=x_column, y='Value', hue='Metric')
+    plt.grid(linestyle='-', linewidth=0.5, color='#DDDDDD', zorder=0)
+
+    # Decide between lineplot and barplot
+    if chart_type == 'line':
+        sns.lineplot(data=df_long, x=x_column, y='Value', hue='Metric', zorder=2)
+    elif chart_type == 'bar':
+        sns.barplot(data=df_long, x=x_column, y='Value', hue='Metric', zorder=2)
 
     # Plot the best result if select_metric is specified
     if select_metric is not None:
@@ -3272,17 +3952,23 @@ def plot_results(
         # Format the best_val with decimal places and commas
         best_val_formatted = f'{best_val:,.{decimal}f}'
 
-        # Plot the vertical dotted line and dot
-        plt.axvline(x=best_iter, color='green', linestyle='--', zorder=2,
-                    label=f"{x_column} {best_iter}: {select_metric}: {best_val_formatted}")
-        plt.scatter(best_iter, y_coord, color='green', s=60, zorder=3)
+        # Plot the best result
+        if chart_type == 'line':
+            # Plot the vertical dotted line
+            plt.axvline(x=best_iter, color='green', linestyle='--', zorder=3,
+                        label=f"{x_column} {best_iter}: {select_metric}: {best_val_formatted}")
+            # Plot the dot
+            plt.scatter(best_iter, y_coord, color='green', s=60, zorder=3)
+        elif chart_type == 'bar':
+            # Plot the horizontal dotted line
+            plt.axhline(y=best_val, color='green', linestyle='--', zorder=3,
+                        label=f"{x_column} {best_iter}: {select_metric}: {best_val_formatted}")
 
     # Continue the plot
-    plt.grid(linestyle='--', linewidth=0.5, color='#DDDDDD')
     plt.legend(loc='best')
 
     # Format the X axis
-    plt.xticks(df[x_column].unique())
+    plt.xticks(df[x_column].unique(), rotation=rotation)
     plt.xlabel(x_column, fontsize=14, labelpad=10)
 
     # Plot the title, with whatever parameters we have

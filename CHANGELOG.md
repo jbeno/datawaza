@@ -5,10 +5,15 @@ All notable changes to the Datawaza project will be documented in this file.
 ## [0.1.3] - UNPUBLISHED
 
 ### Added
-- Model module (model.py):
+- New functions added to Model module (model.py):
   - compare_models() - Find the best classification model and hyper-parameters for a dataset.
+  - create_nn_binary() - Create a binary classification neural network model.
+  - create_nn_multi() - Create a multi-class classification neural network model.
+    - Note: Known issue with KerasClassifier calling OneHotEncoder with the 'sparse' parameter, which was renamed to 'sparse_output' in scikit-learn 1.2. This will cause a TypeError until the issue is resolved. See [SciKeras issue 316](https://github.com/adriangb/scikeras/issues/316)
   - eval_model() - Produce a detailed evaluation report for a classification model.
   - plot_acf_residuals() - Plot residuals, histogram, ACF, and PACF of a time series ARIMA model.
+- New functions added to Tools module (tools.py):
+  - DebugPrinter - Conditionally print debugging information during the execution of a script.
 
 ### Changed
 - Package configuration
@@ -17,7 +22,9 @@ All notable changes to the Datawaza project will be documented in this file.
 - Explore module (explore.py):
   - plot_map_ca - Detect Python version. To get path to package 'data' directory that stores map files, use importlib.resources for >= 3.10, otherwise importlib_resources
 - Model module (model.py):
+  - eval_model() - Changed logic for handling class labels/display names to now use class_map dictionary. Bug fixes.
   - iterate_model() - Added ability to do Random Grid Search.
+  - plot_results() - Added ability to switch from line chart to bar chart.
 - Minor bug fixes
 
 ## [0.1.2] - 2024-03-19

@@ -20,6 +20,9 @@ perform log transformations, calculate VIF and Feature Permutation Importance,
 and extract the coefficients from models that support them.
 
 Classes:
+    - :class:`~datawaza.tools.DebugPrinter` - Conditionally print debugging information during the execution of a script.
+        - :meth:`~datawaza.tools.DebugPrinter.print` - Print a message if debugging is enabled.
+        - :meth:`~datawaza.tools.DebugPrinter.set_debug` - Enable or disable debugging mode.
     - :class:`~datawaza.tools.LogTransformer` - Apply logarithmic transformation to numerical features.
         - :meth:`~datawaza.tools.LogTransformer.fit` - Fit the transformer to the input data.
         - :meth:`~datawaza.tools.LogTransformer.transform` - Apply the logarithmic transformation to the input data.
@@ -1068,6 +1071,86 @@ def thousands(
 
 
 # Classes
+class DebugPrinter:
+    """
+    Conditionally print debugging information during the execution of a script.
+
+    This class provides a simple way to print debugging information during the
+    execution of a script. By setting the `debug` attribute to True, you can
+    enable or disable debugging output throughout the script. The `print()`
+    method works like the built-in `print()` function but only prints output
+    when debugging is enabled.
+
+    Use this class when you need to easily control and print debugging messages
+    in your script, allowing you to enable or disable debugging output as needed.
+    It allows you to avoid nesting a bunch of print statements underneath an
+    "if debug:" statement, and it's lighter weight than a full logging setup.
+
+    Parameters
+    ----------
+    debug : bool, optional
+        Whether to enable debugging output. Default is False.
+
+    Examples
+    --------
+    Set some test variables for the examples:
+
+    >>> name = 'Setting'
+    >>> value = 10
+
+    Example 1: Create a DebugPrinter object and print a debug message:
+
+    >>> db = DebugPrinter(debug=True)
+    >>> db.print('This is a debug message.')
+    This is a debug message.
+
+    Example 2: Disable debugging and print a message that doesn't display:
+
+    >>> db.set_debug(False)
+    >>> db.print("This is a debug message that won't show.")
+
+    Example 3: Re-enable debug, and print a formatted message with variables:
+
+    >>> db.set_debug(True)
+    >>> db.print(f'This is a debug message. ({name}: {value})')
+    This is a debug message. (Setting: 10)
+    """
+
+    def __init__(
+            self,
+            debug: bool = False
+    ):
+        """
+        Initialize the DebugPrinter object with the specified debugging setting.
+        """
+        self.debug = debug
+
+    def print(self, *args, **kwargs):
+        """
+        Print debugging information if debugging is enabled.
+
+        Parameters
+        ----------
+        *args
+            Any number of positional arguments to print.
+        **kwargs
+            Any keyword arguments to pass to the built-in `print()` function.
+        """
+        if self.debug:
+            print(*args, **kwargs)
+
+    def set_debug(self, debug: bool):
+        """
+        Set the debugging setting to enable or disable debugging output.
+
+        Parameters
+        ----------
+        debug : bool
+            Whether to enable or disable debugging output.
+        """
+        self.debug = debug
+
+
 class LogTransformer(BaseEstimator, TransformerMixin):
     """
     Apply logarithmic transformation to numerical features.
