@@ -13,8 +13,8 @@ Datawaza streamlines common Data Science tasks. It's a collection of tools for d
 
 <p align="center">
   <a href="https://www.datawaza.com/en/latest/explore.html#datawaza.explore.plot_charts"><img src="https://www.datawaza.com/en/latest/_static/plot_charts.png" width="30%" /></a>
-  <a href="https://www.datawaza.com/en/latest/explore.html#datawaza.explore.plot_map_ca"><img src="https://www.datawaza.com/en/latest/_static/plot_map_ca.png" width="30%" style="margin:0 1%;" /></a>
-  <a href="https://www.datawaza.com/en/latest/explore.html#datawaza.explore.plot_3d"><img src="https://www.datawaza.com/en/latest/_static/plot_3d.png" width="30%" /></a>
+  <a href="https://www.datawaza.com/en/latest/model.html#datawaza.model.compare_models"><img src="https://www.datawaza.com/en/latest/_static/compare_models_1.png" width="30%" /></a>
+  <a href="https://www.datawaza.com/en/latest/model.html#datawaza.model.compare_models"><img src="https://www.datawaza.com/en/latest/_static/compare_models_2.png" width="30%" style="margin:0 1%;" /></a>
 </p>
 <p align="center">
   <a href="https://www.datawaza.com/en/latest/model.html#datawaza.model.iterate_model"><img src="https://www.datawaza.com/en/latest/_static/iterate_model_1.png" width="30%" /></a>
@@ -22,9 +22,9 @@ Datawaza streamlines common Data Science tasks. It's a collection of tools for d
   <a href="https://www.datawaza.com/en/latest/model.html#datawaza.model.plot_results"><img src="https://www.datawaza.com/en/latest/_static/plot_results.png" width="30%" /></a>
 </p>
 <p align="center">
-  <a href="https://www.datawaza.com/en/latest/explore.html#datawaza.explore.get_corr"><img src="https://www.datawaza.com/en/latest/_static/get_corr.png" width="30%" /></a>
-  <a href="https://www.datawaza.com/en/latest/clean.html#datawaza.clean.reduce_multicollinearity"><img src="https://www.datawaza.com/en/latest/_static/reduce_multicollinearity.png" width="30%" style="margin:0 1%;" /></a>
   <a href="https://www.datawaza.com/en/latest/explore.html#datawaza.explore.plot_corr"><img src="https://www.datawaza.com/en/latest/_static/plot_corr.png" width="30%" /></a>
+  <a href="https://www.datawaza.com/en/latest/explore.html#datawaza.explore.plot_map_ca"><img src="https://www.datawaza.com/en/latest/_static/plot_map_ca.png" width="30%" style="margin:0 1%;" /></a>
+  <a href="https://www.datawaza.com/en/latest/explore.html#datawaza.explore.plot_3d"><img src="https://www.datawaza.com/en/latest/_static/plot_3d.png" width="30%" /></a>
 </p>
 
 Installation
@@ -39,9 +39,9 @@ See the [Change Log](CHANGELOG.md) for a history of changes.
 Dependencies
 ------------
 
-Datawaza supports Python 3.9 - 3.12. Because Cartopy does not support Python 3.8, and that's a dependency for `plot_map_ca`, 3.8 is not supported.
+Datawaza supports Python 3.9 - 3.11. Because Cartopy does not support Python 3.8, and that's a dependency for `plot_map_ca`, 3.8 is not supported. Because SciKeras does not support Python 3.12, and that's a dependency for `compare_models`, 3.12 is not supported.
 
-Installation requires NumPy, Pandas, Matplotlib, Seaborn, Plotly, Scikit-Learn, SciPy, Cartopy, GeoPandas, StatsModels, and a few other supporting packages. See the [Requirements.txt](https://github.com/jbeno/datawaza/blob/main/requirements.txt).
+Installation requires NumPy, Pandas, Matplotlib, Seaborn, Plotly, Scikit-Learn, SciPy, Cartopy, GeoPandas, StatsModels, TesnorFlow, and a few other supporting packages. See the [Requirements.txt](https://github.com/jbeno/datawaza/blob/main/requirements.txt).
 
 Documentation
 -------------
@@ -144,7 +144,7 @@ Plot a chart showing the top correlations with the target variable:
 
 ![plot_corr output](https://www.datawaza.com/en/latest/_static/plot_corr_output.png)
 
-Run a model iteration, which dynamically assembles a pipeline and evaluates the model, including
+Run a regression model iteration, which dynamically assembles a pipeline and evaluates the model, including
 charts of residuals, predicted vs. actual, and coefficients:
 
     >>> results_df, iteration_6 = dw.iterate_model(X2_train, X2_test, y2_train, y2_test,
@@ -163,5 +163,98 @@ Compare train/test scores across model iterations, and select the best result:
     ...     select_metric='Test MAE', select_criteria='min', decimal=0)
 
 ![plot_results output](https://www.datawaza.com/en/latest/_static/plot_results_output.png)
+
+Define a configuration file to compare multiple binary classification models:
+
+    >>> # Set some variables referenced in the config
+    >>> random_state = 42
+    >>> class_weight = None
+    >>> max_iter = 10000
+    >>>
+    >>> # Set column lists referenced in the config
+    >>> num_columns = list(X.columns)
+    >>> cat_columns = []
+    >>>
+    >>> # Create a custom configuration file with 3 models and grid search params
+    >>> my_config = {
+    ...     'models' : {
+    ...         'logreg': LogisticRegression(max_iter=max_iter,
+    ...                   random_state=random_state, class_weight=class_weight),
+    ...         'knn_class': KNeighborsClassifier(),
+    ...         'tree_class': DecisionTreeClassifier(random_state=random_state,
+    ...                       class_weight=class_weight)
+    ...     },
+    ...     'imputers': {
+    ...         'simple_imputer': SimpleImputer()
+    ...     },
+    ...     'transformers': {
+    ...         'ohe': (OneHotEncoder(drop='if_binary', handle_unknown='ignore'),
+    ...                     cat_columns)
+    ...     },
+    ...     'scalers': {
+    ...         'stand': StandardScaler()
+    ...     },
+    ...     'selectors': {
+    ...         'sfs_logreg': SequentialFeatureSelector(LogisticRegression(
+    ...                       max_iter=max_iter, random_state=random_state,
+    ...                       class_weight=class_weight))
+    ...     },
+    ...     'params' : {
+    ...         'logreg': {
+    ...             'logreg__C': [0.0001, 0.001, 0.01, 0.1, 1, 10, 100],
+    ...             'logreg__solver': ['newton-cg', 'lbfgs', 'saga']
+    ...         },
+    ...         'knn_class': {
+    ...             'knn_class__n_neighbors': [3, 5, 10, 15, 20, 25],
+    ...             'knn_class__weights': ['uniform', 'distance'],
+    ...             'knn_class__metric': ['euclidean', 'manhattan']
+    ...         },
+    ...         'tree_class': {
+    ...             'tree_class__max_depth': [3, 5, 7],
+    ...             'tree_class__min_samples_split': [5, 10, 15],
+    ...             'tree_class__criterion': ['gini', 'entropy'],
+    ...             'tree_class__min_samples_leaf': [2, 4, 6]
+    ...         },
+    ...     },
+    ...     'cv': {
+    ...         'kfold_5': KFold(n_splits=5, shuffle=True, random_state=42)
+    ...     },
+    ...     'no_scale': ['tree_class'],
+    ...     'no_poly': ['knn_class', 'tree_class']
+    ... }
+
+Run a binary classification on 7 models, dynamically assembling the pipeline and
+performing a grid search of the hyper-parameters, all based on the configuration
+file defined above:
+
+    >>> results_df = compare_models(
+    ...
+    ...     # Data split and sampling
+    ...     x=X, y=y, test_size=0.25, stratify=None, under_sample=None,
+    ...     over_sample=None, svm_knn_resample=None,
+    ...
+    ...     # Models and pipeline steps
+    ...     imputer=None, transformers=None, scaler='stand', selector=None,
+    ...     models=['logreg', 'knn_class', 'svm_proba', 'tree_class',
+    ...     'forest_class', 'xgb_class', 'keras_class'], svm_proba=True,
+    ...
+    ...     # Grid search
+    ...     search_type='random', scorer='accuracy', grid_cv='kfold_5', verbose=1,
+    ...
+    ...     # Model evaluation and charts
+    ...     model_eval=True, plot_perf=True, plot_curve=True, fig_size=(12,6),
+    ...     legend_loc='lower left', rotation=45, threshold=0.5,
+    ...     class_map=class_map, pos_label=1, title='Breast Cancer',
+    ...
+    ...     # Config, preferences and notes
+    ...     config=my_config, class_weight=None, random_state=42, decimal=4,
+    ...     n_jobs=None, notes='Test Size=0.25, Threshold=0.50'
+    ... )  #doctest: +NORMALIZE_WHITESPACE
+
+![compare_models output 1 of 5](https://www.datawaza.com/en/latest/_static/compare_models_output_1.png)
+![compare_models output 2 of 5](https://www.datawaza.com/en/latest/_static/compare_models_output_2.png)
+![compare_models output 3 of 5](https://www.datawaza.com/en/latest/_static/compare_models_output_3.png)
+![compare_models output 4 of 5](https://www.datawaza.com/en/latest/_static/compare_models_output_4.png)
+![compare_models output 5 of 5](https://www.datawaza.com/en/latest/_static/compare_models_output_5.png)
 
 This was just a sample of some Datawaza tools. Download [userguide.ipynb](https://github.com/jbeno/datawaza/blob/main/docs/userguide.ipynb) and explore the full breadth of the library in your Jupyter environment.

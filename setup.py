@@ -7,7 +7,7 @@ with open('README.md', 'r', encoding='utf-8') as fh:
 setup(
     name = 'datawaza',
     version = '0.1.3',
-    python_requires = '>=3.9',
+    python_requires = '>=3.9, <3.12',  # SciKeras 0.12.0 requires less than 3.12
     packages = find_packages(),
     package_data = {
         # Specify files within the datawaza package
@@ -31,9 +31,11 @@ setup(
         'plotly>=5.19.0',
         'nbformat>=4.2.0',
         'importlib_resources>=6.3.2; python_version<"3.10"',
-        'scikeras>=0.12.0',
+        'scikeras>=0.12.0',  # Update to 0.13.0 as soon as available
         'xgboost>=2.0.3',
-        'imbalanced-learn>=0.12.0'
+        'imbalanced-learn>=0.12.0',
+        'tensorflow>=2.16.1',
+        'keras>=3.1.1'
     ],
     extras_require = {
         'doc': [

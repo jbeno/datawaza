@@ -26,6 +26,7 @@ Functions:
     - :func:`~datawaza.model.iterate_model` - Iterate and evaluate a model pipeline with specified parameters.
     - :func:`~datawaza.model.plot_acf_residuals` - Plot residuals, histogram, ACF, and PACF of a time series ARIMA model.
     - :func:`~datawaza.model.plot_results` - Plot the results of model iterations and select the best metric.
+    - :func:`~datawaza.model.plot_train_history` - Plot the training and validation history of a fitted Keras model.
 """
 
 # Metadata
@@ -38,6 +39,7 @@ __license__ = "GNU GPLv3"
 import os
 from datetime import datetime
 import time
+import math
 
 # Data manipulation and analysis
 import numpy as np
@@ -82,7 +84,7 @@ from imblearn.under_sampling import RandomUnderSampler
 from joblib import dump
 
 # Local Datawaza helper function imports
-from datawaza.tools import calc_pfi, calc_vif, extract_coef, log_transform, thousands, DebugPrinter
+from datawaza.tools import calc_pfi, calc_vif, extract_coef, log_transform, thousands, DebugPrinter, model_summary
 
 # Typing imports
 from typing import Optional, Union, Tuple, List, Dict, Any
@@ -90,9 +92,10 @@ from typing import Optional, Union, Tuple, List, Dict, Any
 # TensorFlow and Keras
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Suppress TensorFlow warning on import
 import tensorflow as tf
-from tensorflow import keras
-from tensorflow.keras.layers import Dense, Dropout
-from tensorflow.keras.regularizers import l2
+import keras
+from keras.models import Sequential
+from keras.layers import Dense, Dropout, Input
+from keras.regularizers import L2
 
 # Functions
 def compare_models(
@@ -138,7 +141,6 @@ def compare_models(
         n_jobs: Optional[int] = None,
         output: bool = True,
         timezone: str = 'UTC',
-        show_time: bool = True,
         debug: bool = False
 ) -> pd.DataFrame:
     """
@@ -369,8 +371,6 @@ def compare_models(
         Whether to print the progress and results.
     timezone : str, optional
         Timezone to be used for timestamps. Default is 'UTC'.
-    show_time : bool, optional
-        Show the timestamp, disable for test cases (default True).
     debug : bool, optional
         Flag to show debugging information.
 
@@ -411,14 +411,17 @@ def compare_models(
     ...                   random_state=random_state, class_weight=class_weight),
     ...         'knn_class': KNeighborsClassifier(),
     ...         'tree_class': DecisionTreeClassifier(random_state=random_state,
-    ...                       class_weight=class_weight)
+    ...                       class_weight=class_weight),
+    ...         'svm_proba': SVC(random_state=random_state, probability=True,
+    ...                      class_weight=class_weight),
     ...     },
     ...     'imputers': {
     ...         'simple_imputer': SimpleImputer()
     ...     },
     ...     'transformers': {
     ...         'ohe': (OneHotEncoder(drop='if_binary', handle_unknown='ignore'),
-    ...                     cat_columns)
+    ...                     cat_columns),
+    ...         'poly2': (PolynomialFeatures(degree=2, include_bias=False), num_columns)
     ...     },
     ...     'scalers': {
     ...         'stand': StandardScaler()
@@ -443,6 +446,10 @@ def compare_models(
     ...             'tree_class__min_samples_split': [5, 10, 15],
     ...             'tree_class__criterion': ['gini', 'entropy'],
     ...             'tree_class__min_samples_leaf': [2, 4, 6]
+    ...         },
+    ...         'svm_proba': {
+    ...             'svm_proba__C': [0.01, 0.1, 1, 10, 100],
+    ...             'svm_proba__kernel': ['linear', 'poly']
     ...         },
     ...     },
     ...     'cv': {
@@ -474,12 +481,11 @@ def compare_models(
     ...
     ...     # Config, preferences and notes
     ...     config=my_config, class_weight=None, random_state=42, decimal=2,
-    ...     n_jobs=None, notes='Test Size=0.25, Threshold=0.50',
-    ...     show_time=False
-    ... )  #doctest: +NORMALIZE_WHITESPACE
+    ...     n_jobs=None, notes='Test Size=0.25, Threshold=0.50'
+    ... )  #doctest: +NORMALIZE_WHITESPACE, +ELLIPSIS
     <BLANKLINE>
     -----------------------------------------------------------------------------------------
-    Starting Data Processing -
+    Starting Data Processing - ... UTC
     -----------------------------------------------------------------------------------------
     <BLANKLINE>
     Classification type detected: binary
@@ -489,14 +495,14 @@ def compare_models(
     X_train, X_test, y_train, y_test shapes:  (750, 20) (250, 20) (750,) (250,)
     <BLANKLINE>
     -----------------------------------------------------------------------------------------
-    1/3: Starting LogisticRegression Random Search -
+    1/3: Starting LogisticRegression Random Search - ... UTC
     -----------------------------------------------------------------------------------------
     <BLANKLINE>
     Fitting 5 folds for each of 10 candidates, totalling 50 fits
     <BLANKLINE>
-    Total Time: 0.00 seconds
-    Average Fit Time: 0.00 seconds
-    Inference Time: 0.00
+    Total Time: ... seconds
+    Average Fit Time: ... seconds
+    Inference Time: ...
     Best CV Accuracy Score: 0.88
     Train Accuracy Score: 0.89
     Test Accuracy Score: 0.86
@@ -530,14 +536,14 @@ def compare_models(
     Threshold: 0.5
     <BLANKLINE>
     -----------------------------------------------------------------------------------------
-    2/3: Starting KNeighborsClassifier Random Search -
+    2/3: Starting KNeighborsClassifier Random Search - ... UTC
     -----------------------------------------------------------------------------------------
     <BLANKLINE>
     Fitting 5 folds for each of 10 candidates, totalling 50 fits
     <BLANKLINE>
-    Total Time: 0.00 seconds
-    Average Fit Time: 0.00 seconds
-    Inference Time: 0.00
+    Total Time: ... seconds
+    Average Fit Time: ... seconds
+    Inference Time: ...
     Best CV Accuracy Score: 0.86
     Train Accuracy Score: 1.00
     Test Accuracy Score: 0.84
@@ -571,14 +577,14 @@ def compare_models(
     Threshold: 0.5
     <BLANKLINE>
     -----------------------------------------------------------------------------------------
-    3/3: Starting DecisionTreeClassifier Random Search -
+    3/3: Starting DecisionTreeClassifier Random Search - ... UTC
     -----------------------------------------------------------------------------------------
     <BLANKLINE>
     Fitting 5 folds for each of 10 candidates, totalling 50 fits
     <BLANKLINE>
-    Total Time: 0.00 seconds
-    Average Fit Time: 0.00 seconds
-    Inference Time: 0.00
+    Total Time: ... seconds
+    Average Fit Time: ... seconds
+    Inference Time: ...
     Best CV Accuracy Score: 0.88
     Train Accuracy Score: 0.93
     Test Accuracy Score: 0.86
@@ -610,11 +616,149 @@ def compare_models(
     <BLANKLINE>
     Positive Class: Benign (1)
     Threshold: 0.5
-    >>> results_df.head()  #doctest: +NORMALIZE_WHITESPACE +ELLIPSIS
+    >>> results_df.head()  #doctest: +NORMALIZE_WHITESPACE, +ELLIPSIS
                         Model  Test Size Over Sample Under Sample Resample  Total Fit Time  Fit Count  Average Fit Time  Inference Time Grid Scorer                                        Best Params  Best CV Score  Train Score  Test Score Overfit  Overfit Difference  Train Accuracy Score  Test Accuracy Score  Train Precision Score  Test Precision Score  Train Recall Score  Test Recall Score  Train F1 Score  Test F1 Score  Train ROC AUC Score  Test ROC AUC Score  Threshold  True Positives  False Positives  True Negatives  False Negatives       TPR       FPR       TNR       FNR  False Rate            Pipeline                           Notes Timestamp
-    0      LogisticRegression       0.25        None         None     None               0         50                 0               0    Accuracy       {'logreg__solver': 'saga', 'logreg__C': 0.1}       0.877333        0.888       0.860     Yes               0.028                 0.888                0.860               0.903153              0.891720            0.907240           0.886076        0.905192       0.888889             0.935388            0.922675        0.5             140               17              75               18  0.886076  0.184783  0.815217  0.113924    0.298707     [stand, logreg]  Test Size=0.25, Threshold=0.50
-    1    KNeighborsClassifier       0.25        None         None     None               0         50                 0               0    Accuracy  {'knn_class__weights': 'distance', 'knn_class_...       0.861333        1.000       0.836     Yes               0.164                 1.000                0.836               1.000000              0.897959            1.000000           0.835443        1.000000       0.865574             1.000000            0.911805        0.5             132               15              77               26  0.835443  0.163043  0.836957  0.164557    0.327600  [stand, knn_class]  Test Size=0.25, Threshold=0.50
-    2  DecisionTreeClassifier       0.25        None         None     None               0         50                 0               0    Accuracy  {'tree_class__min_samples_split': 15, 'tree_cl...       0.882667        0.932       0.856     Yes               0.076                 0.932                0.856               0.955711              0.929577            0.927602           0.835443        0.941447       0.880000             0.974926            0.919889        0.5             132               10              82               26  0.835443  0.108696  0.891304  0.164557    0.273253        [tree_class]  Test Size=0.25, Threshold=0.50
+    0      LogisticRegression       0.25        None         None     None               ...         50                 ...    Accuracy       {'logreg__solver': 'saga', 'logreg__C': 0.1}       0.877333        0.888       0.860     Yes               0.028                 0.888                0.860               0.903153              0.891720            0.907240           0.886076        0.905192       0.888889             0.935388            0.922675        0.5             140               17              75               18  0.886076  0.184783  0.815217  0.113924    0.298707     [stand, logreg]  Test Size=0.25, Threshold=0.50...
+    1    KNeighborsClassifier       0.25        None         None     None               ...         50                 ...    Accuracy  {'knn_class__weights': 'distance', 'knn_class_...       0.861333        1.000       0.836     Yes               0.164                 1.000                0.836               1.000000              0.897959            1.000000           0.835443        1.000000       0.865574             1.000000            0.911805        0.5             132               15              77               26  0.835443  0.163043  0.836957  0.164557    0.327600  [stand, knn_class]  Test Size=0.25, Threshold=0.50...
+    2  DecisionTreeClassifier       0.25        None         None     None               ...         50                 ...    Accuracy  {'tree_class__min_samples_split': 15, 'tree_cl...       0.882667        0.932       0.856     Yes               0.076                 0.932                0.856               0.955711              0.929577            0.927602           0.835443        0.941447       0.880000             0.974926            0.919889        0.5             132               10              82               26  0.835443  0.108696  0.891304  0.164557    0.273253        [tree_class]  Test Size=0.25, Threshold=0.50...
+
+    Example 2: Compare models with more pipeline steps, stratification, under
+    sampling, and resampling for SVM, with SVM probabilities enabled:
+
+    >>> results_df = compare_models(
+    ...
+    ...     # Data split and sampling
+    ...     x=X, y=y, test_size=0.25, stratify=y, under_sample=0.8,
+    ...     over_sample=None, svm_knn_resample=0.2,
+    ...
+    ...     # Models and pipeline steps
+    ...     imputer='simple_imputer', transformers=None, scaler='stand', selector=None,
+    ...     models=['logreg', 'svm_proba'], svm_proba=True,
+    ...
+    ...     # Grid search
+    ...     search_type='random', scorer='accuracy', grid_cv='kfold_5', verbose=1,
+    ...
+    ...     # Model evaluation and charts
+    ...     model_eval=True, plot_perf=True, plot_curve=True, fig_size=(12,6),
+    ...     legend_loc='lower left', rotation=45, threshold=0.5,
+    ...     class_map=class_map, pos_label=1, title='Breast Cancer',
+    ...
+    ...     # Config, preferences and notes
+    ...     config=my_config, class_weight=None, random_state=42, decimal=2,
+    ...     n_jobs=None, notes='Test Size=0.25, Threshold=0.50'
+    ... )  #doctest: +NORMALIZE_WHITESPACE, +ELLIPSIS
+    <BLANKLINE>
+    -----------------------------------------------------------------------------------------
+    Starting Data Processing - ... UTC
+    -----------------------------------------------------------------------------------------
+    <BLANKLINE>
+    Classification type detected: binary
+    Unique values in y: [0 1]
+    <BLANKLINE>
+    Train/Test split, test_size:  0.25
+    X_train, X_test, y_train, y_test shapes:  (750, 20) (250, 20) (750,) (250,)
+    <BLANKLINE>
+    Undersampling via RandomUnderSampler strategy:  0.8
+    X_train, y_train shapes before:  (750, 20) (750,)
+    y_train value counts before:  Target
+    1    450
+    0    300
+    Name: count, dtype: int64
+    Running RandomUnderSampler on X_train, y_train...
+    X_train, y_train shapes after:  (675, 20) (675,)
+    y_train value counts after:  Target
+    1    375
+    0    300
+    Name: count, dtype: int64
+    <BLANKLINE>
+    -----------------------------------------------------------------------------------------
+    1/2: Starting LogisticRegression Random Search - ... UTC
+    -----------------------------------------------------------------------------------------
+    <BLANKLINE>
+    Fitting 5 folds for each of 10 candidates, totalling 50 fits
+    <BLANKLINE>
+    Total Time: ... seconds
+    Average Fit Time: ... seconds
+    Inference Time: ...
+    Best CV Accuracy Score: 0.87
+    Train Accuracy Score: 0.88
+    Test Accuracy Score: 0.86
+    Overfit: Yes
+    Overfit Difference: 0.01
+    Best Parameters: {'logreg__solver': 'saga', 'logreg__C': 0.1}
+    <BLANKLINE>
+    LogisticRegression Binary Classification Report
+    <BLANKLINE>
+                  precision    recall  f1-score   support
+    <BLANKLINE>
+       Malignant       0.84      0.82      0.83       100
+          Benign       0.88      0.89      0.89       150
+    <BLANKLINE>
+        accuracy                           0.86       250
+       macro avg       0.86      0.86      0.86       250
+    weighted avg       0.86      0.86      0.86       250
+    <BLANKLINE>
+    ROC AUC: 0.92
+    <BLANKLINE>
+                   Predicted:0         1
+    Actual: 0                82        18
+    Actual: 1                16        134
+    <BLANKLINE>
+    True Positive Rate / Sensitivity: 0.89
+    True Negative Rate / Specificity: 0.82
+    False Positive Rate / Fall-out: 0.18
+    False Negative Rate / Miss Rate: 0.11
+    <BLANKLINE>
+    Positive Class: Benign (1)
+    Threshold: 0.5
+    <BLANKLINE>
+    -----------------------------------------------------------------------------------------
+    2/2: Starting SVC Random Search - ... UTC
+    -----------------------------------------------------------------------------------------
+    <BLANKLINE>
+    Training data resampled to 20.0% of original for KNN and SVM speed improvement
+    X_train, y_train shapes after:  (135, 20) (135,)
+    y_train value counts after:  Target
+    1    75
+    0    60
+    Name: count, dtype: int64
+    <BLANKLINE>
+    Fitting 5 folds for each of 10 candidates, totalling 50 fits
+    <BLANKLINE>
+    Total Time: ... seconds
+    Average Fit Time: ... seconds
+    Inference Time: ...
+    Best CV Accuracy Score: 0.87
+    Train Accuracy Score: 0.90
+    Test Accuracy Score: 0.86
+    Overfit: Yes
+    Overfit Difference: 0.05
+    Best Parameters: {'svm_proba__kernel': 'linear', 'svm_proba__C': 0.01}
+    <BLANKLINE>
+    SVC Binary Classification Report
+    <BLANKLINE>
+                  precision    recall  f1-score   support
+    <BLANKLINE>
+       Malignant       0.83      0.85      0.84       100
+          Benign       0.90      0.88      0.89       150
+    <BLANKLINE>
+        accuracy                           0.87       250
+       macro avg       0.86      0.86      0.86       250
+    weighted avg       0.87      0.87      0.87       250
+    <BLANKLINE>
+    ROC AUC: 0.92
+    <BLANKLINE>
+                   Predicted:0         1
+    Actual: 0                85        15
+    Actual: 1                18        132
+    <BLANKLINE>
+    True Positive Rate / Sensitivity: 0.88
+    True Negative Rate / Specificity: 0.85
+    False Positive Rate / Fall-out: 0.15
+    False Negative Rate / Miss Rate: 0.12
+    <BLANKLINE>
+    Positive Class: Benign (1)
+    Threshold: 0.5
     """
     # Initialize debugging, controlled via 'debug' parameter
     db = DebugPrinter(debug = debug)
@@ -662,7 +806,6 @@ def compare_models(
     db.print('n_jobs:', n_jobs)
     db.print('output:', output)
     db.print('timezone:', timezone)
-    db.print('show_time:', show_time)
     db.print('config:', config)
 
     # Define required parameters
@@ -794,9 +937,8 @@ def compare_models(
     timestamp = ''
 
     # Set initial timestamp for data processing
-    if show_time is True:
-        current_time = datetime.now(pytz.timezone(timezone))
-        timestamp = current_time.strftime(f'%b %d, %Y %I:%M %p {timezone}')
+    current_time = datetime.now(pytz.timezone(timezone))
+    timestamp = current_time.strftime(f'%b %d, %Y %I:%M %p {timezone}')
 
     if output:
         print(f"\n-----------------------------------------------------------------------------------------")
@@ -980,9 +1122,8 @@ def compare_models(
 
 
         # Create the timestamp for this model's iteration
-        if show_time is True:
-            current_time = datetime.now(pytz.timezone(timezone))
-            timestamp = current_time.strftime(f'%b %d, %Y %I:%M %p {timezone}')
+        current_time = datetime.now(pytz.timezone(timezone))
+        timestamp = current_time.strftime(f'%b %d, %Y %I:%M %p {timezone}')
         timestamp_list.append(timestamp)
 
         # Show a banner with number, model name, search type, timestamp, for this model's iteration
@@ -1027,10 +1168,7 @@ def compare_models(
         db.print('\nGrid fit complete.')
         db.print('\nGrid search results:')
         db.print(grid.cv_results_)
-        if show_time is True:
-            fit_time = time.time() - start_time
-        else:
-            fit_time = 0  # Don't show changing times for test cases
+        fit_time = time.time() - start_time
         fit_time_list.append(fit_time)
         if output:
             print(f"\nTotal Time: {fit_time:.{decimal}f} seconds")
@@ -1045,10 +1183,7 @@ def compare_models(
         db.print('fit_count:', fit_count)
         fit_count_list.append(fit_count)
         db.print('fit_time:', fit_time)
-        if show_time is True:
-            avg_fit_time = fit_time / fit_count
-        else:
-            avg_fit_time = 0  # Don't show changing times for test cases
+        avg_fit_time = fit_time / fit_count
         avg_fit_time_list.append(avg_fit_time)
         if output:
             print(f"Average Fit Time: {avg_fit_time:.{decimal}f} seconds")
@@ -1118,10 +1253,7 @@ def compare_models(
             y_test_pred = grid.predict(X_test)
 
         # Capture the inference time, or test predictions time
-        if show_time is True:
-            inference_time = time.time() - start_time
-        else:
-            inference_time = 0  # Don't show changing times for test cases
+        inference_time = time.time() - start_time
         inference_time_list.append(inference_time)
         if output:
             print(f"Inference Time: {inference_time:.{decimal}f}")
@@ -1129,23 +1261,40 @@ def compare_models(
         # Calculate ROC AUC, based on class type and predict_proba support
         def calculate_roc_auc(grid, X, y, class_type, note):
             try:
+                # Attempt to use predict_proba or decision_function based on class_type
                 if class_type == 'multi':
-                    # For multi-class classification, use predict_proba with multi_class='ovr'
-                    db.print(f'Class: {class_type}, Method: predict_proba(X), Threshold: {threshold}, Data: {note}, Score: ROC AUC')
-                    return roc_auc_score(y, grid.predict_proba(X), multi_class='ovr')
+                    # Ensure predict_proba is available for the grid (model)
+                    if hasattr(grid, 'predict_proba'):
+                        db.print(f'Class: {class_type}, Method: predict_proba(X), Threshold: {threshold}, Data: {note}, Score: ROC AUC')
+                        pred_proba = grid.predict_proba(X)
+                        # Check if predict_proba output is 2D and correct shape, adjust if necessary
+                        if pred_proba.ndim == 1:
+                            db.print(f'pred_proba.ndim == 1, Before: {pred_proba.shape}')
+                            db.print('pred_proba:', pred_proba)
+                            pred_proba = np.expand_dims(pred_proba, axis=1)
+                            db.print(f'After: {pred_proba.shape}')
+                            db.print('pred_proba:', pred_proba)
+                        return roc_auc_score(y, pred_proba, multi_class='ovr')
+                    else:
+                        print(f"Model does not support 'predict_proba' for multi-class ROC AUC calculation.")
+                        return None
                 else:
-                    # For binary classification, use predict_proba for positive class
-                    db.print(f'Class: {class_type}, Method: predict_proba(X)[:, 1], Threshold: {threshold}, Data: {note}, Score: ROC AUC')
-                    return roc_auc_score(y, grid.predict_proba(X)[:, 1])
-            except AttributeError:
-                # If predict_proba is not available, attempt to use decision_function for binary classification
-                db.print('ATTRIBUTE ERROR')
-                if class_type != 'multi' and hasattr(grid, 'decision_function'):
-                    db.print(f'Class: {class_type}, Method: decision_function(X), Threshold: {threshold}, Data: {note}, Score: ROC AUC')
-                    decision_values = grid.decision_function(X)
-                    return roc_auc_score(y, decision_values)
-                # If neither predict_proba nor decision_function are suitable, return None
-                db.print(f'Class: {class_type}, Method: NONE, Threshold: {threshold}, Data: {note}, Score: ROC AUC')
+                    # For binary classification, directly use predict_proba or decision_function
+                    if hasattr(grid, 'predict_proba'):
+                        db.print(f'Class: {class_type}, Method: predict_proba(X)[:, 1], Threshold: {threshold}, Data: {note}, Score: ROC AUC')
+                        pred_proba = grid.predict_proba(X)[:, 1]
+                        db.print('pred_proba:', pred_proba)
+                        return roc_auc_score(y, pred_proba)
+                    elif hasattr(grid, 'decision_function'):
+                        db.print(f'Class: {class_type}, Method: decision_function(X), Threshold: {threshold}, Data: {note}, Score: ROC AUC')
+                        decision_values = grid.decision_function(X)
+                        db.print('decision_values:', decision_values)
+                        return roc_auc_score(y, decision_values)
+                    else:
+                        print(f"Model does not support 'predict_proba' or 'decision_function' for binary ROC AUC calculation.")
+                        return None
+            except Exception as e:
+                print(f"An error occurred during ROC AUC calculation: {str(e)}")
                 return None
 
         # Calculate the train and test ROC AUC
@@ -1229,10 +1378,11 @@ def compare_models(
         # Output the neural network layers for KerasClassifier
         if model_name == 'KerasClassifier':
             db.print('\nOutputting the neural network layers for KerasClassifier...')
+            keras_classifier = grid.best_estimator_.named_steps['keras_class']
+            keras_model = keras_classifier.model_
             if output:
+                print('') # Empty line for spacing
                 # Access the Keras model from the best estimator in the grid search
-                keras_classifier = grid.best_estimator_.named_steps['keras_class']
-                keras_model = keras_classifier.model_
                 keras_model.summary()
 
         # Display model evaluation metrics and plots by calling 'eval_model' function
@@ -1256,61 +1406,18 @@ def compare_models(
                                                decimal=decimal, plot=True, figmulti=figmulti, class_weight=class_weight,
                                                return_metrics=True, output=output, multi_class=multi_class)
 
-            # For neural network, if plot_curves=True, re-train the model and plot training history
+            # For neural network, if plot_curves=True, plot training history
             if model_name == 'KerasClassifier' and plot_curve:
-                db.print('\nRe-training the model and plotting training history...')
-                # First, apply the imputer
-                if imputer:
-                    db.print('Applying the imputer...')
-                    imputed_data = best_estimator.named_steps[imputer].transform(X_train)
-                else:
-                    imputed_data = X_train
-
-                # Then apply the scaler
-                if scaler:
-                    db.print('Applying the scaler...')
-                    scaled_data = best_estimator.named_steps[scaler].transform(imputed_data)
-                else:
-                    scaled_data = imputed_data
-                # Note: Do we need selector here?
-
-                # Fit the best model on the processed data so we can access history
-                # Note: Can we do this earlier to avoid fitting the model a second time?
-                db.print('Fitting the best model on the processed data...')
-                keras_classifier.fit(scaled_data, y_train)
-
-                # Debug: Print attributes of keras_classifier
-                db.print('\nAttributes of keras_classifier:')
-                db.print(dir(keras_classifier))
 
                 # Access the training history
-                history = keras_classifier.model_.history.history
-                db.print("Training History: ", history)
+                db.print('best_estimator:', best_estimator)
+                db.print('keras_classifier:', keras_classifier)
+                db.print('keras_model:', keras_model)
+                db.print('keras_classifier.history_:', keras_classifier.history_)
+                history = keras_classifier.history_
 
-                # Create the matplotlib figure and axes
-                fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5.5))
-
-                # Plot training and validation Loss values
-                ax1.grid(which='both', color='lightgrey', linewidth=0.5)
-                ax1.plot(history['loss'], label='Training Loss', marker='.')
-                ax1.plot(history['val_loss'], label='Validation Loss', marker='.')
-                ax1.set_title('Training vs. Validation Loss', fontsize=18, pad=15)
-                ax1.set_xlabel('Epoch', fontsize=14, labelpad=15)
-                ax1.set_ylabel('Loss', fontsize=14, labelpad=10)
-                ax1.legend()
-
-                # Plot training and validation Accuracy values
-                ax2.grid(which='both', color='lightgrey', linewidth=0.5)
-                ax2.plot(history['accuracy'], label='Training Accuracy', marker='.')
-                ax2.plot(history['val_accuracy'], label='Validation Accuracy', marker='.')
-                ax2.set_title('Training vs. Validation Accuracy', fontsize=18, pad=15)
-                ax2.set_xlabel('Epoch', fontsize=14, labelpad=15)
-                ax2.set_ylabel('Accuracy', fontsize=14, labelpad=10)
-                ax2.legend(loc='lower right')
-
-                # Show the plot
-                plt.tight_layout()
-                plt.show()
+                # Plot the training history
+                plot_train_history(history=history)
 
         # Set the binary metric values based on the list of binary metrics, if it was produced by 'eval_model'
         if binary_metrics is not None:
@@ -1513,6 +1620,8 @@ def create_nn_binary(
 
     Examples
     --------
+    >>> pd.set_option('display.max_columns', None)  # For test consistency
+    >>> pd.set_option('display.width', None)  # For test consistency
     >>> from sklearn.datasets import make_classification
     >>> from sklearn.model_selection import train_test_split
     >>> X, y = make_classification(n_samples=100, n_features=10, random_state=42)
@@ -1524,78 +1633,67 @@ def create_nn_binary(
 
     >>> model = create_nn_binary(hidden_layer_dim=32, dropout_rate=0.2, l2_reg=0.01,
     ...                       meta=meta)
-    >>> model.summary()  #doctest: +NORMALIZE_WHITESPACE
-    Model: "sequential"
-    _________________________________________________________________
-     Layer (type)                Output Shape              Param #
-    =================================================================
-     dense (Dense)               (None, 32)                352
-    <BLANKLINE>
-     dropout (Dropout)           (None, 32)                0
-    <BLANKLINE>
-     dense_1 (Dense)             (None, 1)                 33
-    <BLANKLINE>
-    =================================================================
-    Total params: 385 (1.50 KB)
-    Trainable params: 385 (1.50 KB)
-    Non-trainable params: 0 (0.00 Byte)
-    _________________________________________________________________
+    >>> model_summary(model)  #doctest: +NORMALIZE_WHITESPACE
+            Item                  Name         Type Activation Output Shape  Parameters   Bytes
+    0      Model            Sequential   Sequential       None         None         NaN     NaN
+    1      Input                 Input  KerasTensor       None   (None, 10)         0.0     0.0
+    2      Layer              Hidden_1        Dense       relu   (None, 32)       352.0  1408.0
+    3      Layer             Dropout_1      Dropout       None   (None, 32)         0.0     0.0
+    4      Layer                Output        Dense    sigmoid    (None, 1)        33.0   132.0
+    5  Statistic          Total Params         None       None         None       385.0  1540.0
+    6  Statistic      Trainable Params         None       None         None       385.0  1540.0
+    7  Statistic  Non-Trainable Params         None       None         None         0.0     0.0
 
     Example 2: Create a neural network with additional layers and regularization:
 
     >>> model = create_nn_binary(hidden_layer_dim=64, dropout_rate=0.3, l2_reg=0.05,
     ...                       second_layer_dim=32, third_layer_dim=16, meta=meta)
-    >>> model.summary()  #doctest: +NORMALIZE_WHITESPACE
-    Model: "sequential_1"
-    _________________________________________________________________
-     Layer (type)                Output Shape              Param #
-    =================================================================
-     dense_2 (Dense)             (None, 64)                704
-    <BLANKLINE>
-     dropout_1 (Dropout)         (None, 64)                0
-    <BLANKLINE>
-     dense_3 (Dense)             (None, 32)                2080
-    <BLANKLINE>
-     dropout_2 (Dropout)         (None, 32)                0
-    <BLANKLINE>
-     dense_4 (Dense)             (None, 16)                528
-    <BLANKLINE>
-     dropout_3 (Dropout)         (None, 16)                0
-    <BLANKLINE>
-     dense_5 (Dense)             (None, 1)                 17
-    <BLANKLINE>
-    =================================================================
-    Total params: 3329 (13.00 KB)
-    Trainable params: 3329 (13.00 KB)
-    Non-trainable params: 0 (0.00 Byte)
-    _________________________________________________________________
+    >>> model_summary(model)  #doctest: +NORMALIZE_WHITESPACE
+             Item                  Name         Type Activation Output Shape  Parameters    Bytes
+    0       Model            Sequential   Sequential       None         None         NaN      NaN
+    1       Input                 Input  KerasTensor       None   (None, 10)         0.0      0.0
+    2       Layer              Hidden_1        Dense       relu   (None, 64)       704.0   2816.0
+    3       Layer             Dropout_1      Dropout       None   (None, 64)         0.0      0.0
+    4       Layer              Hidden_2        Dense       relu   (None, 32)      2080.0   8320.0
+    5       Layer             Dropout_2      Dropout       None   (None, 32)         0.0      0.0
+    6       Layer              Hidden_3        Dense       relu   (None, 16)       528.0   2112.0
+    7       Layer             Dropout_3      Dropout       None   (None, 16)         0.0      0.0
+    8       Layer                Output        Dense    sigmoid    (None, 1)        17.0     68.0
+    9   Statistic          Total Params         None       None         None      3329.0  13316.0
+    10  Statistic      Trainable Params         None       None         None      3329.0  13316.0
+    11  Statistic  Non-Trainable Params         None       None         None         0.0      0.0
     """
+    # Capture parameters from metadata
     n_features_in_ = meta["n_features_in_"]
     X_shape_ = meta["X_shape_"]
     n_classes_ = 1  # For binary classification
 
-    model = keras.models.Sequential()
-    input_shape = (X_shape_[1],)
-
     # Adjust L2 regularization based on the parameter
-    reg = l2(l2_reg) if l2_reg > 0 else None
+    reg = L2(l2_reg) if l2_reg > 0 else None
+
+    # Create a sequential model
+    model = keras.models.Sequential(name='Sequential')
+
+    # Create the input layer
+    input_shape = (X_shape_[1],)
+    model.add(Input(shape=input_shape, name='Input'))
 
     # Add the first hidden layer
-    model.add(Dense(hidden_layer_dim, input_shape=input_shape, activation='relu', kernel_regularizer=reg))
-    model.add(Dropout(dropout_rate))
+    model.add(Dense(hidden_layer_dim, activation='relu', kernel_regularizer=reg, name='Hidden_1'))
+    model.add(Dropout(dropout_rate, name='Dropout_1'))
 
     # Add a second hidden layer if specified
     if second_layer_dim is not None:
-        model.add(Dense(second_layer_dim, activation='relu', kernel_regularizer=reg))
-        model.add(Dropout(dropout_rate))
+        model.add(Dense(second_layer_dim, activation='relu', kernel_regularizer=reg, name='Hidden_2'))
+        model.add(Dropout(dropout_rate, name='Dropout_2'))
 
     # Add a third hidden layer if specified
     if third_layer_dim is not None:
-        model.add(Dense(third_layer_dim, activation='relu', kernel_regularizer=reg))
-        model.add(Dropout(dropout_rate))
+        model.add(Dense(third_layer_dim, activation='relu', kernel_regularizer=reg, name='Hidden_3'))
+        model.add(Dropout(dropout_rate, name='Dropout_3'))
 
     # Add the output layer for binary classification
-    model.add(Dense(n_classes_, activation='sigmoid'))
+    model.add(Dense(n_classes_, activation='sigmoid', name='Output'))
 
     return model
 
@@ -1647,6 +1745,8 @@ def create_nn_multi(
 
     Examples
     --------
+    >>> pd.set_option('display.max_columns', None)  # For test consistency
+    >>> pd.set_option('display.width', None)  # For test consistency
     >>> from sklearn.datasets import load_iris
     >>> from sklearn.model_selection import train_test_split
     >>> X, y = load_iris(return_X_y=True)
@@ -1658,83 +1758,65 @@ def create_nn_multi(
 
     >>> model = create_nn_multi(hidden_layer_dim=64, dropout_rate=0.2, l2_reg=0.01,
     ...                         meta=meta)
-    >>> model.summary()  #doctest: +NORMALIZE_WHITESPACE
-    Model: "sequential"
-    _________________________________________________________________
-     Layer (type)                Output Shape              Param #
-    =================================================================
-     dense (Dense)               (None, 4)                 20
-    <BLANKLINE>
-     dense_1 (Dense)             (None, 64)                320
-    <BLANKLINE>
-     dropout (Dropout)           (None, 64)                0
-    <BLANKLINE>
-     dense_2 (Dense)             (None, 3)                 195
-    <BLANKLINE>
-    =================================================================
-    Total params: 535 (2.09 KB)
-    Trainable params: 535 (2.09 KB)
-    Non-trainable params: 0 (0.00 Byte)
-    _________________________________________________________________
+    >>> model_summary(model)  #doctest: +NORMALIZE_WHITESPACE
+            Item                  Name         Type Activation Output Shape  Parameters   Bytes
+    0      Model            Sequential   Sequential       None         None         NaN     NaN
+    1      Input                 Input  KerasTensor       None    (None, 4)         0.0     0.0
+    2      Layer              Hidden_1        Dense       relu   (None, 64)       320.0  1280.0
+    3      Layer             Dropout_1      Dropout       None   (None, 64)         0.0     0.0
+    4      Layer                Output        Dense    softmax    (None, 3)       195.0   780.0
+    5  Statistic          Total Params         None       None         None       515.0  2060.0
+    6  Statistic      Trainable Params         None       None         None       515.0  2060.0
+    7  Statistic  Non-Trainable Params         None       None         None         0.0     0.0
 
     Example 2: Create a neural network with an additional hidden layer:
 
     >>> model = create_nn_multi(hidden_layer_dim=128, dropout_rate=0.3, l2_reg=0.05,
     ...                         second_layer_dim=64, meta=meta)
-    >>> model.summary()  #doctest: +NORMALIZE_WHITESPACE
-    Model: "sequential_1"
-    _________________________________________________________________
-     Layer (type)                Output Shape              Param #
-    =================================================================
-     dense_3 (Dense)             (None, 4)                 20
-    <BLANKLINE>
-     dense_4 (Dense)             (None, 128)               640
-    <BLANKLINE>
-     dropout_1 (Dropout)         (None, 128)               0
-    <BLANKLINE>
-     dense_5 (Dense)             (None, 64)                8256
-    <BLANKLINE>
-     dropout_2 (Dropout)         (None, 64)                0
-    <BLANKLINE>
-     dense_6 (Dense)             (None, 3)                 195
-    <BLANKLINE>
-    =================================================================
-    Total params: 9111 (35.59 KB)
-    Trainable params: 9111 (35.59 KB)
-    Non-trainable params: 0 (0.00 Byte)
-    _________________________________________________________________
+    >>> model_summary(model)  #doctest: +NORMALIZE_WHITESPACE
+            Item                  Name         Type Activation Output Shape  Parameters    Bytes
+    0      Model            Sequential   Sequential       None         None         NaN      NaN
+    1      Input                 Input  KerasTensor       None    (None, 4)         0.0      0.0
+    2      Layer              Hidden_1        Dense       relu  (None, 128)       640.0   2560.0
+    3      Layer             Dropout_1      Dropout       None  (None, 128)         0.0      0.0
+    4      Layer              Hidden_2        Dense       relu   (None, 64)      8256.0  33024.0
+    5      Layer             Dropout_2      Dropout       None   (None, 64)         0.0      0.0
+    6      Layer                Output        Dense    softmax    (None, 3)       195.0    780.0
+    7  Statistic          Total Params         None       None         None      9091.0  36364.0
+    8  Statistic      Trainable Params         None       None         None      9091.0  36364.0
+    9  Statistic  Non-Trainable Params         None       None         None         0.0      0.0
     """
+    # Capture parameters from metadata
     n_features_in_ = meta["n_features_in_"]
     X_shape_ = meta["X_shape_"]
     n_classes_ = meta["n_classes_"]  # Number of classes for multi-class classification
 
-    model = keras.models.Sequential()
-
-    # Adjust the input layer
-    input_shape = (X_shape_[1],)  # Tuple representing the shape of a single sample
-
     # Adjust L2 regularization based on the parameter
-    reg = l2(l2_reg) if l2_reg > 0 else None
+    reg = L2(l2_reg) if l2_reg > 0 else None
 
-    # Input layer with L2 regularization
-    model.add(Dense(n_features_in_, input_shape=input_shape, activation='relu', kernel_regularizer=reg))
+    # Create a sequential model
+    model = keras.models.Sequential(name='Sequential')
+
+    # Create the input layer
+    input_shape = (X_shape_[1],)  # Tuple representing the shape of a single sample
+    model.add(Input(shape=input_shape, name='Input'))
 
     # Add the first hidden layer
-    model.add(Dense(hidden_layer_dim, activation='relu', kernel_regularizer=reg))
-    model.add(Dropout(dropout_rate))
+    model.add(Dense(hidden_layer_dim, activation='relu', kernel_regularizer=reg, name='Hidden_1'))
+    model.add(Dropout(dropout_rate, name='Dropout_1'))
 
     # Add a second hidden layer if specified
     if second_layer_dim is not None:
-        model.add(Dense(second_layer_dim, activation='relu', kernel_regularizer=reg))
-        model.add(Dropout(dropout_rate))
+        model.add(Dense(second_layer_dim, activation='relu', kernel_regularizer=reg, name='Hidden_2'))
+        model.add(Dropout(dropout_rate, name='Dropout_2'))
 
     # Add a third hidden layer if specified
     if third_layer_dim is not None:
-        model.add(Dense(third_layer_dim, activation='relu', kernel_regularizer=reg))
-        model.add(Dropout(dropout_rate))
+        model.add(Dense(third_layer_dim, activation='relu', kernel_regularizer=reg, name='Hidden_3'))
+        model.add(Dropout(dropout_rate, name='Dropout_3'))
 
     # Output layer for multi-class classification
-    model.add(Dense(n_classes_, activation='softmax'))
+    model.add(Dense(n_classes_, activation='softmax', name='Output'))
 
     return model
 
@@ -2514,7 +2596,7 @@ def eval_model(
         # Run the classification report
         db.print('\nRun the Classification Report...')
         class_report = classification_report(y_test, y_pred, digits=decimal, target_names=display_labels,
-                                       zero_division=0, output_dict=True)
+                                             zero_division=0, output_dict=True)
         db.print('class_report:', class_report)
 
         # Calculate ROC AUC if we have x_test and estimator
@@ -2664,7 +2746,7 @@ def eval_model(
         # Run the classification report
         db.print('\nRun the Classification Report...')
         class_report = classification_report(y_test, y_pred, labels=unique_labels, target_names=display_labels,
-                                       digits=decimal, zero_division=0, output_dict=True)
+                                             digits=decimal, zero_division=0, output_dict=True)
         db.print('class_report:', class_report)
         if output:
             print(classification_report(y_test, y_pred, labels=unique_labels, target_names=display_labels,
@@ -2835,7 +2917,7 @@ def eval_model(
 
             # 1. Confusion Matrix
             cm_matrix = ConfusionMatrixDisplay.from_predictions(y_true=y_test, y_pred=y_pred, labels=unique_labels,
-                            display_labels=display_labels, cmap='Blues', colorbar=False, normalize=None, ax=ax1)
+                                                                display_labels=display_labels, cmap='Blues', colorbar=False, normalize=None, ax=ax1)
             for text in cm_matrix.text_:
                 for t in text:
                     t.set_fontsize(conf_fontsize)
@@ -2964,7 +3046,6 @@ def iterate_model(
         decimal: int = 2,
         lowess: bool = False,
         timezone: str = 'UTC',
-        show_time: bool = True,
         debug: bool = False
 ) -> Tuple[pd.DataFrame, Pipeline, Optional[Dict[str, Any]]]:
     """
@@ -3152,8 +3233,6 @@ def iterate_model(
         Flag to display lowess curve in residual plots (default False).
     timezone : str, optional
         Timezone to be used for timestamps. Default is 'UTC'.
-    show_time : bool, optional
-        Show the timestamp, disable for test cases (default True).
     debug : bool, optional
         Flag to show debugging information.
 
@@ -3225,11 +3304,13 @@ def iterate_model(
     Example 1: Iterate a linear regression model with default parameters:
 
     >>> model = iterate_model(X_train, X_test, y_train, y_test,
-    ...                       model='linreg', show_time=False)
+    ...                       model='linreg')  #doctest: +ELLIPSIS
     <BLANKLINE>
     ITERATION 1 RESULTS
     <BLANKLINE>
     Pipeline: linreg
+    ...UTC
+    <BLANKLINE>
     Predictions:
                               Train            Test
     MSE:                       0.20            0.28
@@ -3243,11 +3324,13 @@ def iterate_model(
     ...     transformers=['poly2'], scaler='stand', model='ridge', iteration='2',
     ...     grid=True, grid_params='ridge', grid_cv='kfold_5', plot=True,
     ...     coef=True, perm=True, vif=True, config=my_config,
-    ...     save=True, save_df=results_df, show_time=False)
+    ...     save=True, save_df=results_df)  #doctest: +ELLIPSIS
     <BLANKLINE>
     ITERATION 2 RESULTS
     <BLANKLINE>
     Pipeline: poly2 -> stand -> ridge
+    ...UTC
+    <BLANKLINE>
     Grid Search:
     <BLANKLINE>
     Fitting 5 folds for each of 4 candidates, totalling 20 fits
@@ -3346,8 +3429,7 @@ def iterate_model(
     # Get the current date and time
     current_time = datetime.now(pytz.timezone(timezone))
     timestamp = current_time.strftime(f'%b %d, %Y %I:%M %p {timezone}')
-    if show_time is True:
-        print(f'{timestamp}\n')
+    print(f'{timestamp}\n')
 
     if cross:
         print('Cross Validation:\n')
@@ -3909,6 +3991,16 @@ def plot_results(
     7          3   Test Accuracy  0.8232
     8          4   Test Accuracy  0.8889
     9          5   Test Accuracy  0.8415
+
+    Example 4: Plot a single metric as a bar chart:
+
+    >>> plot_results(df, metrics='Test Accuracy', chart_type='bar')
+
+    Example 5: Plot multiple metrics as a bar chart:
+
+    >>> plot_results(df, metrics=['Train Accuracy', 'Test Accuracy'],
+    ...              select_metric='Test Accuracy', select_criteria='max',
+    ...              y_label='Accuracy', chart_type='bar')
     """
     # Check if metrics are provided
     if metrics is None:
@@ -3996,3 +4088,149 @@ def plot_results(
     # Return the long format df if requested
     if return_df:
         return df_long.reset_index(drop=True)
+
+
+def plot_train_history(
+        model=None,
+        history=None,
+        metrics: Optional[List[str]] = None,
+        plot_loss: bool = True
+) -> None:
+    """
+    Visualize the training history of a fitted Keras model or history dictionary.
+
+    This function creates a grid of subplots to display the training and validation
+    metrics over the epochs. You can pass a fitted model, in which case the history
+    will be extracted from it. Alternatively, you can pass the history dictionary
+    itself. This function will automatically detect the metrics present in the
+    history and plot them all, unless a specific list of metrics is provided.
+    The loss is plotted by default, but can be excluded by setting `plot_loss` to
+    False.
+
+    Use this function to quickly analyze the model's performance during training
+    and identify potential issues such as overfitting or underfitting.
+
+    Parameters
+    ----------
+    model : keras.Model, optional
+        The fitted Keras model whose training history will be plotted. Default is None.
+    history : dict, optional
+        A direct history dictionary obtained from the fitting process. Default is None.
+    metrics : List[str], optional
+        A list of metric names to plot. If None, all metrics found in the history will be plotted,
+        excluding 'loss' unless explicitly listed. Default is None.
+    plot_loss : bool, optional
+        Whether to plot the training and validation loss. Default is True.
+
+    Returns
+    -------
+    None
+        The function displays the plot and does not return any value.
+
+    Examples
+    --------
+    Prepare a simple example model:
+
+    >>> model = Sequential([
+    ...     Input(shape=(8,)),
+    ...     Dense(10, activation='relu'),
+    ...     Dense(1, activation='sigmoid')
+    ... ])
+    >>> model.compile(optimizer='adam', loss='binary_crossentropy',
+    ...               metrics=['accuracy', 'precision', 'recall'])
+
+    Fit the model on some random data:
+
+    >>> import numpy as np
+    >>> X = np.random.rand(100, 8)
+    >>> y = np.random.randint(0, 2, size=(100, 1))
+    >>> model.fit(X, y, epochs=10, batch_size=32, validation_split=0.2,
+    ...           verbose=0)  #doctest: +ELLIPSIS
+    <keras...callbacks.history.History object at 0x...>
+    >>> history = model.history.history
+
+    Example 1: Plot all metrics in the training history from a model:
+
+    >>> plot_train_history(model)
+
+    Example 2: Plot the training history with specific metrics:
+
+    >>> plot_train_history(model, metrics=['accuracy', 'precision'])
+
+    Example 3: Plot the training history without the loss:
+
+    >>> plot_train_history(model, plot_loss=False)
+
+    Example 4: Plot the training history of a model without validation data:
+
+    >>> model.fit(X, y, epochs=10, batch_size=32, verbose=0)  #doctest: +ELLIPSIS
+    <keras...callbacks.history.History object at 0x...>
+    >>> plot_train_history(model)
+
+    Example 5: Plot the training history from a history dictionary:
+
+    >>> plot_train_history(history=history)
+    """
+    # Determine the history source
+    if model is not None:
+        if not hasattr(model, 'history') or model.history is None:
+            raise ValueError("The model has not been fitted yet. Please fit the model before plotting.")
+        history_data = model.history.history
+    elif history is not None:
+        if not isinstance(history, dict):
+            raise TypeError("The 'history' parameter must be a dictionary.")
+        history_data = history
+    else:
+        raise ValueError("Either a fitted 'model' or 'history' dictionary is required for plotting.")
+
+    # Auto-detect metrics if not provided, excluding loss
+    if metrics is None:
+        metrics = [key for key in history_data.keys() if not key.startswith('val_') and key != 'loss']
+
+    # Filter out metrics not in history
+    metrics = [metric for metric in metrics if metric in history_data or 'val_' + metric in history_data]
+
+    # Calculate the number of plots
+    total_plots = (1 if plot_loss and 'loss' in history_data else 0) + len(metrics)
+    rows = math.ceil(total_plots / 2)
+    cols = 2 if total_plots > 1 else 1
+
+    # Create subplots
+    fig, axs = plt.subplots(rows, cols, figsize=(12, 5.5 * rows))
+    axs = np.array(axs).reshape(-1) if total_plots > 1 else np.array([axs])
+
+    plot_index = 0
+
+    # Plot Loss if required
+    if plot_loss and 'loss' in history_data:
+        axs[plot_index].plot(history_data['loss'], label='Training Loss', marker='.')
+        if 'val_loss' in history_data:
+            axs[plot_index].plot(history_data['val_loss'], label='Validation Loss', marker='.')
+        axs[plot_index].set_title('Loss', fontsize=18, pad=15)
+        axs[plot_index].set_xlabel('Epoch', fontsize=14, labelpad=15)
+        axs[plot_index].set_ylabel('Loss', fontsize=14, labelpad=10)
+        axs[plot_index].grid(which='both', color='lightgrey', linewidth=0.5)
+        axs[plot_index].legend()
+        plot_index += 1
+
+    # Plot specified metrics and their validation counterparts if present
+    for metric in metrics:
+        if metric in history_data:
+            axs[plot_index].plot(history_data[metric], label=f'Training {metric.capitalize()}', marker='.')
+        val_metric = 'val_' + metric
+        if val_metric in history_data:
+            axs[plot_index].plot(history_data[val_metric], label=f'Validation {metric.capitalize()}', marker='.')
+        axs[plot_index].set_title(metric.capitalize(), fontsize=18, pad=15)
+        axs[plot_index].set_xlabel('Epoch', fontsize=14, labelpad=15)
+        axs[plot_index].set_ylabel(metric.capitalize(), fontsize=14, labelpad=10)
+        axs[plot_index].grid(which='both', color='lightgrey', linewidth=0.5)
+        axs[plot_index].legend()
+        plot_index += 1
+
+    # Hide any unused axes in case of an odd number of total plots
+    for idx in range(plot_index, rows * cols):
+        axs[idx].set_visible(False)
+
+    plt.tight_layout()
+    plt.show()
+

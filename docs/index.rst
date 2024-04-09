@@ -54,6 +54,8 @@ The `latest releases <https://pypi.org/project/datawaza/>`_ can be found on PyPi
 
    pip install datawaza
 
+See the `Change Log <https://github.com/jbeno/datawaza/blob/main/CHANGELOG.md>`_ for a history of changes.
+
 User Guide
 ..........
 

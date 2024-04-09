@@ -294,9 +294,11 @@ def get_outliers(
     0      A             100           2           2.0              1             1.00      0.01     -0.25
     2      C             100           0           0.0              1             1.00     -0.03      0.19
 
-    Example 2: Create a dataframe that lists outlier statistics, excluding zeros:
+    Example 2: Create a dataframe that lists outlier statistics, excluding zeros
+    and plot the box plots:
 
-    >>> outlier_summary = get_outliers(df, num_columns, exclude_zeros=True)
+    >>> outlier_summary = get_outliers(df, num_columns, exclude_zeros=True,
+    ...                                plot=True, width=14, height=3)
     >>> print(outlier_summary)
       Column  Total Non-Null  Total Zero  Zero Percent  Outlier Count  Outlier Percent  Skewness  Kurtosis
     0      B              98           0           0.0              4             4.08      2.62     10.48
@@ -468,6 +470,46 @@ def get_unique(
     <BLANKLINE>
         Female       2   40.0%
         Male         3   60.0%
+
+    Example 3: Sort values by percent, plot charts, and show the continuous
+    statistics for those over the 'n' threshold:
+
+    >>> get_unique(df, n=3, sort='percent', plot=True, cont=True)
+    <BLANKLINE>
+    CATEGORICAL: Variables with unique values equal to or below: 3
+    <BLANKLINE>
+    Animal has 3 unique values:
+    <BLANKLINE>
+        'Dog'               3   50.0%
+        'Cat'               2   33.33%
+        'Mountain Lion'     1   16.67%
+    <BLANKLINE>
+    <BLANKLINE>
+    <BLANKLINE>
+    Sex has 3 unique values:
+    <BLANKLINE>
+        Male         3   50.0%
+        Female       2   33.33%
+        nan          1   16.67%
+    <BLANKLINE>
+    <BLANKLINE>
+    <BLANKLINE>
+    CONTINUOUS: Variables with unique values greater than: 3
+    <BLANKLINE>
+    Weight has 6 unique values:
+    <BLANKLINE>
+    Weight
+    count     6.000000
+    mean     27.050000
+    std      29.292712
+    min       6.500000
+    25%       8.900000
+    50%      17.400000
+    75%      27.475000
+    max      84.100000
+    Name: Weight, dtype: float64
+    <BLANKLINE>
+    <BLANKLINE>
     """
     # Calculate # of unique values for each variable in the dataframe
     var_list = df.nunique(axis=0, dropna=dropna)
@@ -900,6 +942,9 @@ def plot_charts(df: pd.DataFrame,
     ...     'Category A': np.random.choice(['A', 'B', 'C'], size=100),
     ...     'Category B': np.random.choice(['D', 'E', 'F', 'G', 'H', 'I', 'J'],
     ...                                    size=100),
+    ...     'Category C': np.random.choice(['K', 'L', 'M', 'N', 'O', 'P', 'Q',
+    ...                                     'R', 'S', 'T', 'U', 'V', 'W', 'X'],
+    ...                                    size=100),
     ...     'Measure 1': np.random.randn(100),
     ...     'Measure 2': np.random.exponential(scale=2.0, size=100),
     ...     'Target': np.random.choice(['Yes', 'No'], size=100)
@@ -923,10 +968,28 @@ def plot_charts(df: pd.DataFrame,
     >>> plot_charts(df, plot_type='both', n=7, fig_width=20, ncols=3, rotation=90)
 
     Example 4: Plot only histograms dimensioned by hue (stacked values), with KDE
-    lines, and X axis in log scale:
+    lines, X axis in log scale, and check data types:
 
     >>> plot_charts(df, plot_type='cont', cont_cols=num_cols, hue='Target',
-    ...             multiple='stack', kde=True, log_scale=True)
+    ...             multiple='stack', kde=True, log_scale=True, dtype_check=True)
+
+    Example 5: Take a sample of the data and plot only histograms dimensioned
+    by hue (layer values), ignore zero values:
+
+    >>> plot_charts(df, plot_type='cont', cont_cols=num_cols, hue='Target',
+    ...             multiple='layer', sample_size=0.5, ignore_zero=True)
+
+    Example 6: Normalize the values and plot categorical values:
+
+    >>> plot_charts(df, plot_type='cat', cat_cols=cat_cols, hue='Target',
+    ...             normalize=True)
+
+    Example 7: Plot more than 10 categorical values, specify just one column name,
+    and increase the figure size, with just one column:
+
+    >>> plot_charts(df, plot_type='cat', cat_cols=['Category C'],
+    ...             fig_width=12, subplot_height=7, ncols=1, rotation=90)
+
     """
     # Function to sample the data
     def get_sample(df, sample_size):
@@ -1025,6 +1088,9 @@ def plot_charts(df: pd.DataFrame,
         for empty_subplot in axs[nplots:]:
             fig.delaxes(empty_subplot)
 
+        # Show the plot
+        plt.show()
+
     # Function to plot continuous variables as histograms
     def plot_continuous(df, cols, ncols, fig_width, subplot_height, sample_size, hue,
                         color_discrete_map, kde, multiple, log_scale, ignore_zero):
@@ -1067,6 +1133,9 @@ def plot_charts(df: pd.DataFrame,
         # Remove empty subplots
         for empty_subplot in axs[nplots:]:
             fig.delaxes(empty_subplot)
+
+        # Show the plot
+        plt.show()
 
     # Start by getting counts of unique values
     unique_count = df.nunique()

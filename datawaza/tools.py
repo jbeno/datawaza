@@ -35,6 +35,7 @@ Functions:
     - :func:`~datawaza.tools.extract_coef` - Extract feature names and coefficients from a trained model.
     - :func:`~datawaza.tools.format_df` - Format columns of a DataFrame as either large or small numbers.
     - :func:`~datawaza.tools.log_transform` - Apply a log transformation to specified columns in a DataFrame.
+    - :func:`~datawaza.tools.model_summary` - Create a DataFrame summary of a Keras model's architecture and parameters.
     - :func:`~datawaza.tools.split_dataframe` - Split a DataFrame into categorical and numerical columns.
     - :func:`~datawaza.tools.thousand_dollars` - Format a number as currency with thousands separators on a matplotlib chart axis.
     - :func:`~datawaza.tools.thousands` - Format a number with thousands separators on a matplotlib chart axis.
@@ -47,6 +48,7 @@ __version__ = "0.1.3"
 __license__ = "GNU GPLv3"
 
 # Standard library imports
+import os
 import inspect
 
 # Data manipulation and analysis
@@ -80,6 +82,11 @@ from sklearn.linear_model import (
 
 # Typing imports
 from typing import Optional, Union, Tuple, List, Dict, Any
+
+# TensorFlow and Keras
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Suppress TensorFlow warning on import
+import tensorflow as tf
+import keras as keras
 
 
 # Functions
@@ -519,6 +526,25 @@ def extract_coef(
     5    AveOccup    -0.03933
     6    Latitude   -0.899266
     7   Longitude   -0.869916
+
+    Example 3: Extract coefficients from a grid search object:
+
+    >>> parameters = {'model__alpha': [1.0, 0.5]}
+    >>> grid = GridSearchCV(pipe, parameters)
+    >>> grid.fit(X, y)  #doctest: +NORMALIZE_WHITESPACE
+    GridSearchCV(estimator=Pipeline(steps=[('scaler', StandardScaler()),
+                                           ('model', Ridge())]),
+                 param_grid={'model__alpha': [1.0, 0.5]})
+    >>> extract_coef(grid, X)
+          Feature Coefficient
+    0      MedInc        0.83
+    1    HouseAge        0.12
+    2    AveRooms       -0.27
+    3   AveBedrms        0.31
+    4  Population       -0.00
+    5    AveOccup       -0.04
+    6    Latitude       -0.90
+    7   Longitude       -0.87
     """
     # List of classes that support the .coef_ attribute
     SUPPORTED_COEF_CLASSES = (
@@ -863,6 +889,104 @@ def log_transform(
     return df_log
 
 
+def model_summary(
+        model: keras.Model
+) -> pd.DataFrame:
+    """
+    Create a DataFrame summary of a Keras model's architecture and parameters.
+
+    This function takes a Keras model as input and returns a pandas DataFrame
+    containing a summary of the model's architecture, including the model name,
+    type, total parameters, trainable parameters, non-trainable parameters, layer
+    names, types, activations, output shapes, the number of parameters, and the
+    parameter sizes in bytes for each layer.
+
+    Use this function when you need to obtain a structured summary of a Keras
+    model's architecture and parameters for analysis, reporting, or
+    visualization purposes. This is also used to test some other functions
+    where the model.summary() output varies enough to fail the test cases.
+
+    Parameters
+    ----------
+    model : keras.Model
+        The Keras model for which to generate the summary.
+
+    Returns
+    -------
+    pd.DataFrame
+        A pandas DataFrame containing the model summary, with columns for layer
+        name, type, activation, output shape, number of parameters, and parameter
+        size in bytes. Additional rows are included to show the total, trainable,
+        and non-trainable parameters along with their byte sizes.
+
+    Examples
+    --------
+    >>> pd.set_option('display.max_columns', None)  # For test consistency
+    >>> pd.set_option('display.width', None)  # For test consistency
+    >>> model = keras.Sequential([
+    ...     keras.layers.Input(shape=(10,), name='Input'),
+    ...     keras.layers.Dense(64, activation='relu', name='Dense_1'),
+    ...     keras.layers.Dense(32, activation='relu', name='Dense_2'),
+    ...     keras.layers.Dense(1, activation='sigmoid', name='Dense_3'),
+    ... ], name='Sequential_Model')
+    >>> model.build()
+    >>> model_summary(model)  #doctest: +NORMALIZE_WHITESPACE
+            Item                  Name         Type Activation Output Shape  Parameters    Bytes
+    0      Model      Sequential_Model   Sequential       None         None         NaN      NaN
+    1      Input                 Input  KerasTensor       None   (None, 10)         0.0      0.0
+    2      Layer               Dense_1        Dense       relu   (None, 64)       704.0   2816.0
+    3      Layer               Dense_2        Dense       relu   (None, 32)      2080.0   8320.0
+    4      Layer               Dense_3        Dense    sigmoid    (None, 1)        33.0    132.0
+    5  Statistic          Total Params         None       None         None      2817.0  11268.0
+    6  Statistic      Trainable Params         None       None         None      2817.0  11268.0
+    7  Statistic  Non-Trainable Params         None       None         None         0.0      0.0
+    """
+    if not model.built:
+        print("Model is not built. Please build the model by calling `model.build(input_shape)` or by running `model.fit()` with some data.")
+        return pd.DataFrame()  # Return an empty DataFrame if the model is not built
+
+    def format_size(num_params):
+        return num_params * 4  # Assuming parameters are float32, each taking 4 bytes
+
+    layers_summary = []
+
+    # Model row
+    layers_summary.append(["Model", model.name, model.__class__.__name__, None, None, None, None])
+
+    # Input layer(s)
+    for input_tensor in model.inputs:
+        layers_summary.append([
+            "Input", input_tensor.name.split(':')[0], input_tensor.__class__.__name__,
+            None, str(input_tensor.shape), 0, 0
+        ])
+
+    # Layers
+    for layer in model.layers:
+        activation = getattr(layer, 'activation', None)
+        activation_name = activation.__name__ if activation else None
+        try:
+            output_shape = str(layer.output.shape)
+        except AttributeError:
+            output_shape = 'Unavailable'
+        layers_summary.append([
+            "Layer", layer.name, layer.__class__.__name__, activation_name,
+            output_shape, layer.count_params(), format_size(layer.count_params())
+        ])
+
+    # Statistics
+    total_params = model.count_params()
+    trainable_params = sum(tf.size(w).numpy() for w in model.trainable_variables)
+    non_trainable_params = total_params - trainable_params
+
+    layers_summary.append(["Statistic", "Total Params", None, None, None, total_params, format_size(total_params)])
+    layers_summary.append(["Statistic", "Trainable Params", None, None, None, trainable_params, format_size(trainable_params)])
+    layers_summary.append(["Statistic", "Non-Trainable Params", None, None, None, non_trainable_params, format_size(non_trainable_params)])
+
+    summary_df = pd.DataFrame(layers_summary, columns=["Item", "Name", "Type", "Activation", "Output Shape", "Parameters", "Bytes"])
+
+    return summary_df
+
+
 def split_dataframe(
         df: pd.DataFrame,
         n: int
@@ -1082,9 +1206,10 @@ class DebugPrinter:
     when debugging is enabled.
 
     Use this class when you need to easily control and print debugging messages
-    in your script, allowing you to enable or disable debugging output as needed.
-    It allows you to avoid nesting a bunch of print statements underneath an
-    "if debug:" statement, and it's lighter weight than a full logging setup.
+    in your script, allowing you to enable or disable debugging output as
+    needed. It allows you to avoid nesting a bunch of print statements
+    underneath an "if debug:" statement, and it's lighter weight than a full
+    logging setup.
 
     Parameters
     ----------
