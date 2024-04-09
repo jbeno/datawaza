@@ -13,17 +13,17 @@ Datawaza streamlines common Data Science tasks. It's a collection of tools for d
 
 <p align="center">
   <a href="https://www.datawaza.com/en/latest/explore.html#datawaza.explore.plot_charts"><img src="https://www.datawaza.com/en/latest/_static/plot_charts.png" width="30%" /></a>
-  <a href="https://www.datawaza.com/en/latest/model.html#datawaza.model.compare_models"><img src="https://www.datawaza.com/en/latest/_static/compare_models_1.png" width="30%" /></a>
-  <a href="https://www.datawaza.com/en/latest/model.html#datawaza.model.compare_models"><img src="https://www.datawaza.com/en/latest/_static/compare_models_2.png" width="30%" style="margin:0 1%;" /></a>
-</p>
-<p align="center">
-  <a href="https://www.datawaza.com/en/latest/model.html#datawaza.model.iterate_model"><img src="https://www.datawaza.com/en/latest/_static/iterate_model_1.png" width="30%" /></a>
-  <a href="https://www.datawaza.com/en/latest/model.html#datawaza.model.iterate_model"><img src="https://www.datawaza.com/en/latest/_static/iterate_model_2.png" width="30%" style="margin:0 1%;" /></a>
-  <a href="https://www.datawaza.com/en/latest/model.html#datawaza.model.plot_results"><img src="https://www.datawaza.com/en/latest/_static/plot_results.png" width="30%" /></a>
+  <a href="https://www.datawaza.com/en/latest/explore.html#datawaza.explore.plot_map_ca"><img src="https://www.datawaza.com/en/latest/_static/plot_map_ca.png" width="30%" style="margin:0 1%;" /></a>
+  <a href="https://www.datawaza.com/en/latest/model.html#datawaza.model.compare_models"><img src="https://www.datawaza.com/en/latest/_static/compare_models_2.png" width="30%" /></a>
 </p>
 <p align="center">
   <a href="https://www.datawaza.com/en/latest/explore.html#datawaza.explore.plot_corr"><img src="https://www.datawaza.com/en/latest/_static/plot_corr.png" width="30%" /></a>
-  <a href="https://www.datawaza.com/en/latest/explore.html#datawaza.explore.plot_map_ca"><img src="https://www.datawaza.com/en/latest/_static/plot_map_ca.png" width="30%" style="margin:0 1%;" /></a>
+  <a href="https://www.datawaza.com/en/latest/model.html#datawaza.model.plot_train_history"><img src="https://www.datawaza.com/en/latest/_static/plot_train_history.png" width="30%" /></a>
+  <a href="https://www.datawaza.com/en/latest/model.html#datawaza.model.iterate_model"><img src="https://www.datawaza.com/en/latest/_static/iterate_model_1.png" width="30%" /></a>
+</p>
+<p align="center">
+  <a href="https://www.datawaza.com/en/latest/model.html#datawaza.model.iterate_model"><img src="https://www.datawaza.com/en/latest/_static/iterate_model_2.png" width="30%" style="margin:0 1%;" /></a>
+  <a href="https://www.datawaza.com/en/latest/model.html#datawaza.model.plot_results"><img src="https://www.datawaza.com/en/latest/_static/plot_results.png" width="30%" /></a>
   <a href="https://www.datawaza.com/en/latest/explore.html#datawaza.explore.plot_3d"><img src="https://www.datawaza.com/en/latest/_static/plot_3d.png" width="30%" /></a>
 </p>
 
@@ -41,7 +41,7 @@ Dependencies
 
 Datawaza supports Python 3.9 - 3.11. Because Cartopy does not support Python 3.8, and that's a dependency for `plot_map_ca`, 3.8 is not supported. Because SciKeras does not support Python 3.12, and that's a dependency for `compare_models`, 3.12 is not supported.
 
-Installation requires NumPy, Pandas, Matplotlib, Seaborn, Plotly, Scikit-Learn, SciPy, Cartopy, GeoPandas, StatsModels, TesnorFlow, and a few other supporting packages. See the [Requirements.txt](https://github.com/jbeno/datawaza/blob/main/requirements.txt).
+Installation requires NumPy, Pandas, Matplotlib, Seaborn, Plotly, Scikit-Learn, SciPy, Cartopy, GeoPandas, StatsModels, TensorFlow, Keras, SciKeras, and a few other supporting packages. See the [Requirements.txt](https://github.com/jbeno/datawaza/blob/main/requirements.txt).
 
 Documentation
 -------------
@@ -102,7 +102,7 @@ Show the unique values of each variable below the threshold of n = 12:
         divorced       4612    11.2%
         unknown        80      0.19%
 
-Plot bar charts of categorical variables, dimensioned by the target variable:
+Plot bar charts of categorical variables:
 
     >>> dw.plot_charts(df, plot_type='cat', cat_cols=cat_columns, rotation=90)
 
