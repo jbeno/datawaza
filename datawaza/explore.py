@@ -26,6 +26,7 @@ Functions:
     - :func:`~datawaza.explore.plot_charts` - Display multiple bar plots and histograms for categorical and/or continuous variables in a DataFrame, with an option to dimension by the specified `hue`.
     - :func:`~datawaza.explore.plot_corr` - Plot the top `n` correlations of one variable against others in a DataFrame.
     - :func:`~datawaza.explore.plot_map_ca` - Plot longitude and latitude data on a geographic map of California.
+    - :func:`~datawaza.explore.plot_scatt` - Create a scatter plot using Seaborn's scatterplot function.
 """
 
 # Metadata
@@ -62,7 +63,7 @@ else:
     from importlib_resources import files
 
 # Local Datawaza helper function imports
-from datawaza.tools import thousands
+from datawaza.tools import thousands, dollars
 
 # Typing imports
 from typing import Optional, Union, Tuple, List, Dict, Any
@@ -837,7 +838,8 @@ def plot_charts(df: pd.DataFrame,
                 kde: bool = False,
                 multiple: str = 'layer',
                 log_scale: bool = False,
-                ignore_zero: bool = False) -> None:
+                ignore_zero: bool = False
+) -> None:
     """
     Display multiple bar plots and histograms for categorical and/or continuous
     variables in a DataFrame, with an option to dimension by the specified `hue`.
@@ -1160,6 +1162,286 @@ def plot_charts(df: pd.DataFrame,
         plot_continuous(df, cont_cols, ncols, fig_width, subplot_height, sample_size, hue, color_discrete_map, kde, multiple, log_scale, ignore_zero)
 
 
+def plot_scatt(
+        df: pd.DataFrame,
+        x: str,
+        y: str,
+        hue: Optional[str] = None,
+        hue_order: Optional[List[str]] = None,
+        size: Optional[Union[str, int]] = None,
+        size_range: Optional[Tuple[int, int]] = None,
+        title: Optional[str] = None,
+        title_fontsize: int = 18,
+        title_pad: int = 15,
+        x_label: Optional[str] = None,
+        x_format: Optional[str] = None,
+        x_scale: Optional[str] = None,
+        x_lim: Optional[Tuple[float, float]] = None,
+        y_label: Optional[str] = None,
+        y_format: Optional[str] = None,
+        y_scale: Optional[str] = None,
+        y_lim: Optional[Tuple[float, float]] = None,
+        label_fontsize: int = 14,
+        label_pad: int = 10,
+        grid: bool = False,
+        legend: bool = True,
+        legend_title: Optional[str] = None,
+        legend_loc: str = 'best',
+        fig_size: Tuple[int, int] = (12, 6),
+        decimal: int = 2,
+        save: bool = False,
+        **kwargs
+) -> None:
+    """
+    Create a scatter plot using Seaborn's scatterplot function.
+
+    This function generates a scatter plot using the Seaborn library. It allows
+    for customization of the `x` and `y` axes, as well as the `hue` and `size`
+    dimensions. The `hue` parameter is used to color the points based on a
+    categorical column, while the `size` parameter is used to vary the size of
+    the points based on a numerical column or a fixed value. You can also set
+    the range of sizes with `size_range`, and the title of the plot with `title`.
+    The `alpha` parameter controls the transparency of the points. You can also
+    specify a color map with `color_map` to change the color scheme of the plot.
+    The `fig_size` parameter allows you to set the size of the figure.
+
+    Use this function to visualize relationships between two variables in a
+    dataset, with the option to color and size the points based on additional
+    variables. It is a great way to explore correlations between variables and
+    identify patterns in the data.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        The input DataFrame containing the data to be plotted.
+    x : str
+        The column name to be used for the x-axis.
+    y : str
+        The column name to be used for the y-axis.
+    hue : str, optional
+        The column name to be used for color coding the points. Default is None.
+    hue_order : List[str], optional
+        The order of the hue variable levels. Default is None.
+    size : str or int, optional
+        The column name to be used for varying the size of the points, or a fixed
+        size value for all points. Default is None.
+    size_range : Tuple[int, int], optional
+        The range of sizes for the points. Default is None.
+    title : str, optional
+        The title of the plot. Default is None.
+    title_fontsize : int, optional
+        The font size of the title. Default is 18.
+    title_pad : int, optional
+        The padding of the title. Default is 15.
+    x_label : str, optional
+        The label for the x-axis. Default is None.
+    x_format : str, optional
+        The format of the x-axis labels. Default is None.
+    x_scale : str, optional
+        The scale of the x-axis. Default is None.
+    x_lim : Tuple[float, float], optional
+        The limits of the x-axis. Default is None.
+    y_label : str, optional
+        The label for the y-axis. Default is None.
+    y_format : str, optional
+        The format of the y-axis labels. Default is None.
+    y_scale : str, optional
+        The scale of the y-axis. Default is None.
+    y_lim : Tuple[float, float], optional
+        The limits of the y-axis. Default is None.
+    label_fontsize : int, optional
+        The font size of the axis labels. Default is 14.
+    label_pad : int, optional
+        The padding of the axis labels. Default is 10.
+    grid : bool, optional
+        Whether to display a grid on the plot. Default is False.
+    legend : bool, optional
+        Whether to display a legend on the plot. Default is True.
+    legend_title : str, optional
+        The title of the legend. Default is None.
+    legend_loc : str, optional
+        The location of the legend. Default is 'best'.
+    fig_size : Tuple[int, int], optional
+        The size of the figure. Default is (12, 6).
+    decimal : int, optional
+        The number of decimal places to display on the axis labels. Default is 2.
+    save : bool, optional
+        Whether to save the plot as an image file. Default is False.
+    **kwargs
+        Additional keyword arguments to be passed to the underlying
+        `sns.scatterplot()` function. This allows for more flexibility and
+        customization of the scatter plot.
+
+    Returns
+    -------
+    None
+        Displays the scatter plot using Seaborn.
+
+    Examples
+    --------
+
+    Prepare some data for the examples:
+
+    >>> np.random.seed(42)  # For reproducibility
+    >>> x = np.linspace(0, 10, 50)
+    >>> y = 2 * x**2 + 3 * x + 1 + np.random.normal(0, 100, 50)
+    >>> categories = np.where(x < 5, 'A', 'B')
+    >>> sizes = np.where(x < 5, 30, 60)
+    >>> df = pd.DataFrame({
+    ...     'X': x,
+    ...     'Y': y,
+    ...     'Category': categories,
+    ...     'Size': sizes
+    ... })
+    >>> color_palette = {'A': 'red', 'B': 'green'}
+
+    Example 1: Create a basic scatter plot with a fixed size for all points:
+
+    >>> plot_scatt(df, x='X', y='Y', size=50, alpha=0.7)
+
+    Example 2: Create a scatter plot with color coding based on a category and
+    varying point sizes based on a numerical column:
+
+    >>> plot_scatt(df, x='X', y='Y', hue='Category', size='Size',
+    ...            size_range=(20, 100))
+
+    Example 3: Create a scatter plot with a custom title, color map, axis labels,
+    and legend:
+
+    >>> plot_scatt(df, x='X', y='Y', title='Polynomial Trend', hue='Size',
+    ...            palette='viridis', x_label='X Axis', y_label='Y Axis',
+    ...            legend=True)
+
+    Example 4: Create a scatter plot with custom x and y limits and axis formats:
+    >>> plot_scatt(df, x='X', y='Y', x_lim=(0, 8), y_lim=(0, 400),
+    ...            x_format='small_number', y_format='{:,.2f}')
+
+    Example 5: Create a scatter plot with varying point sizes based on a numerical
+    column and save it to a file:
+
+    >>> plot_scatt(df, x='X', y='Y', size='Size', size_range=(20, 100),
+    ...            title='Scatter Plot', save=True)
+
+    Example 6: Create a scatter plot with varying marker styles based on a
+    categorical column:
+
+    >>> plot_scatt(df, x='X', y='Y', hue='Category', style='Category')
+
+    Example 7: Create a scatter plot with a custom marker style and color palette:
+
+    >>> plot_scatt(df, x='X', y='Y', marker='D', hue='Category',
+    ...            palette=color_palette)
+    """
+    # Check if required parameters are provided
+    if df is None:
+        raise ValueError("The 'df' parameter is required.")
+    if x is None or x not in df.columns:
+        raise ValueError(f"The 'x' parameter is required and must be a valid "
+                         f"column name in the DataFrame. Got: {x}")
+    if y is None or y not in df.columns:
+        raise ValueError(f"The 'y' parameter is required and must be a valid "
+                         f"column name in the DataFrame. Got: {y}")
+
+    # Check if optional parameters are valid column names
+    if hue is not None and hue not in df.columns:
+        raise ValueError(f"The 'hue' parameter must be a valid column name in "
+                         f"the DataFrame. Got: {hue}")
+    if isinstance(size, str) and size not in df.columns:
+        raise ValueError(f"The 'size' parameter must be a valid column name in "
+                         f"the DataFrame or an integer. Got: {size}")
+
+    # Check if title is provided when save is True
+    if save and title is None:
+        raise ValueError("The 'title' parameter is required when 'save' is set "
+                         "to True.")
+
+    # Disable legend if there are no `hue` or `size` to differentiate
+    if hue is None and size is None:
+        legend = False
+
+    # Function to get string formatting for the axis values
+    def get_format(kind, decimal):
+        if kind in ['thousands', 'large_number', 'large_numbers']:
+            return FuncFormatter(lambda x, pos: f"{x:,.0f}")
+        elif kind == 'large_dollars':
+            return FuncFormatter(lambda x, pos: f"${x:,.0f}")
+        elif kind in ['small_number', 'small_numbers']:
+            return FuncFormatter(lambda x, pos: f"{x:.{decimal}f}")
+        elif kind == 'small_dollars':
+            return FuncFormatter(lambda x, pos: f"${x:.{decimal}f}")
+        elif kind == 'percent':
+            return FuncFormatter(lambda x, pos: f"{x:.0f}%")
+        else:
+            # Assume 'kind' is a custom format string, return it directly
+            return kind
+
+    # Create the figure at the specified size
+    plt.figure(figsize=fig_size)
+
+    # Format the grid
+    if grid:
+        plt.grid(visible=True, color='lightgrey', alpha=0.5, linestyle='-',
+                 linewidth=0.5)
+
+    # Set the title with the specified font size and padding
+    if title:
+        plt.title(title, fontsize=title_fontsize, pad=title_pad)
+
+    # Create the scatter plot with the specified parameters and additional keyword arguments
+    sns.scatterplot(data=df, x=x, y=y, hue=hue, hue_order=hue_order,
+                    size=size, sizes=size_range, **kwargs)
+
+    # Set the labels for the x axis with the specified font size and padding
+    if x_label:
+        plt.xlabel(xlabel=x_label, fontsize=label_fontsize, labelpad=label_pad)
+    else:
+        plt.xlabel(xlabel=x, fontsize=label_fontsize, labelpad=label_pad)
+
+    # Set the labels for the y axis with the specified font size and padding
+    if y_label:
+        plt.ylabel(ylabel=y_label, fontsize=label_fontsize, labelpad=label_pad)
+    else:
+        plt.ylabel(ylabel=y, fontsize=label_fontsize, labelpad=label_pad)
+
+    # Format the x axis if specified with named format or custom format
+    if x_format:
+        plt.gca().xaxis.set_major_formatter(get_format(x_format, decimal))
+
+    # Format the y axis if specified with named format or custom format
+    if y_format:
+        plt.gca().yaxis.set_major_formatter(get_format(y_format, decimal))
+
+    # Set the scale of the x axis if specified
+    if x_scale:
+        plt.xscale(x_scale)
+
+    # Set the scale of the y axis if specified
+    if y_scale:
+        plt.yscale(y_scale)
+
+    # Set the limits of the x axis if specified
+    if x_lim:
+        plt.xlim(x_lim)
+
+    # Set the limits of the y axis if specified
+    if y_lim:
+        plt.ylim(y_lim)
+
+    # Legend handling
+    if legend:
+        plt.legend(title=legend_title, loc=legend_loc)
+
+    # Clean up the layout
+    plt.tight_layout()
+
+    # Save the plot if specified
+    if save:
+        filename = title.lower().replace(' ', '_') + '.png'
+        plt.savefig(filename)
+
+    # Show the plot
+    plt.show()
+
 def plot_corr(df: pd.DataFrame,
               column: str,
               n: int,
@@ -1167,7 +1449,8 @@ def plot_corr(df: pd.DataFrame,
               size: Tuple[int, int] = (15, 8),
               rotation: int = 45,
               palette: str = 'RdYlGn',
-              decimal: int = 2) -> None:
+              decimal: int = 2
+) -> None:
     """
     Plot the top `n` correlations of one variable against others in a DataFrame.
 

@@ -39,7 +39,8 @@ from .explore import (get_outliers,
                       plot_charts,
                       plot_corr,
                       plot_3d,
-                      plot_map_ca)
+                      plot_map_ca,
+                      plot_scatt)
 
 from .clean import (convert_data_values,
                     convert_dtypes,
@@ -56,7 +57,7 @@ from .tools import (calc_pfi,
                     log_transform,
                     model_summary,
                     split_dataframe,
-                    thousand_dollars,
+                    dollars,
                     thousands,
                     LogTransformer)
 

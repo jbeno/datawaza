@@ -13,6 +13,8 @@ All notable changes to the Datawaza project will be documented in this file.
   - eval_model() - Produce a detailed evaluation report for a classification model.
   - plot_acf_residuals() - Plot residuals, histogram, ACF, and PACF of a time series ARIMA model.
   - plot_train_history() - Plot the training and validation history of a fitted Keras model.
+- New functions added to Explore module (explore.py):
+  - plot_scatt() - Create a scatter plot using Seaborn's scatterplot function.
 - New functions added to Tools module (tools.py):
   - DebugPrinter - Conditionally print debugging information during the execution of a script.
   - model_summary() - Create a DataFrame summary of a Keras model's architecture and parameters.

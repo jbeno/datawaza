@@ -1065,7 +1065,7 @@ def split_dataframe(
     return df_cat, df_num
 
 
-def thousand_dollars(
+def dollars(
         x: float,
         pos: int = 0
 ) -> str:
@@ -1098,7 +1098,7 @@ def thousand_dollars(
     Example 1: Format a large currency value with default parameters:
 
     >>> x = 1234567.89
-    >>> formatted_num = thousand_dollars(x)
+    >>> formatted_num = dollars(x)
     >>> print(formatted_num)
     $1,234,567
 
@@ -1123,7 +1123,7 @@ def thousand_dollars(
     >>> sns.scatterplot(data=df, x='total_rooms', y='median_house_value')  # doctest: +SKIP
     >>> plt.xlabel('Total Rooms', fontsize=14, labelpad=10)  # doctest: +SKIP
     >>> plt.ylabel('Median House Value', fontsize=14)  # doctest: +SKIP
-    >>> plt.gca().yaxis.set_major_formatter(FuncFormatter(thousand_dollars))
+    >>> plt.gca().yaxis.set_major_formatter(FuncFormatter(dollars))
     >>> plt.show()  # Displays the plot (visual output not shown)  # doctest: +SKIP
     """
     s = '${:0,d}'.format(int(x))
