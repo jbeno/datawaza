@@ -11,7 +11,7 @@ setup(
     packages = find_packages(),
     package_data = {
         # Specify files within the datawaza package
-        'datawaza': ['data/*.xml', 'data/*.dbf', 'data/*.shp', 'data/*.shx', 'data/*.cpg', 'data/*.prj'],
+        'datawaza': ['data/*.xml', 'data/*.dbf', 'data/*.shp', 'data/*.shx', 'data/*.cpg', 'data/*.prj', 'data/*.pt'],
     },
     include_package_data=True,
     install_requires=[
