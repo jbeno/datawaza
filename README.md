@@ -39,9 +39,9 @@ See the [Change Log](CHANGELOG.md) for a history of changes.
 Dependencies
 ------------
 
-Datawaza supports Python 3.9 - 3.11. Because Cartopy does not support Python 3.8, and that's a dependency for `plot_map_ca`, 3.8 is not supported. Because SciKeras does not support Python 3.12, and that's a dependency for `compare_models`, 3.12 is not supported.
+Datawaza supports Python 3.9 - 3.12. Because Cartopy does not support Python 3.8, and that's a dependency for `plot_map_ca`, 3.8 is not supported.
 
-Installation requires NumPy, Pandas, Matplotlib, Seaborn, Plotly, Scikit-Learn, SciPy, Cartopy, GeoPandas, StatsModels, TensorFlow, Keras, SciKeras, and a few other supporting packages. See the [Requirements.txt](https://github.com/jbeno/datawaza/blob/main/requirements.txt).
+Installation requires NumPy, Pandas, Matplotlib, Seaborn, Plotly, Scikit-Learn, SciPy, Cartopy, GeoPandas, StatsModels, TensorFlow, Keras, SciKeras (if utilizing KerasClassifier as a model), PyTorch, and a few other supporting packages. See the [Requirements.txt](https://github.com/jbeno/datawaza/blob/main/requirements.txt).
 
 Documentation
 -------------

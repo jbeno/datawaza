@@ -40,7 +40,8 @@ from .explore import (get_outliers,
                       plot_corr,
                       plot_3d,
                       plot_map_ca,
-                      plot_scatt)
+                      plot_scatt,
+                      print_ascii_image)
 
 from .clean import (convert_data_values,
                     convert_dtypes,

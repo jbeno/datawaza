@@ -27,6 +27,7 @@ Functions:
     - :func:`~datawaza.explore.plot_corr` - Plot the top `n` correlations of one variable against others in a DataFrame.
     - :func:`~datawaza.explore.plot_map_ca` - Plot longitude and latitude data on a geographic map of California.
     - :func:`~datawaza.explore.plot_scatt` - Create a scatter plot using Seaborn's scatterplot function.
+    - :func:`~datawaza.explore.print_ascii_image` - Print ASCII representation of one or two PyTorch images.
 """
 
 # Metadata
@@ -43,6 +44,9 @@ import numpy as np
 import pandas as pd
 from pandas import DataFrame
 import geopandas as gpd
+
+# Machine learning libraries
+import torch
 
 # Visualization libraries
 import matplotlib.pyplot as plt
@@ -1372,8 +1376,8 @@ def plot_scatt(
         elif kind == 'percent':
             return FuncFormatter(lambda x, pos: f"{x:.0f}%")
         else:
-            # Assume 'kind' is a custom format string, return it directly
-            return kind
+            # Assume 'kind' is a custom format string, create a formatter using it
+            return FuncFormatter(lambda x, pos: kind.format(x))
 
     # Create the figure at the specified size
     plt.figure(figsize=fig_size)
@@ -1694,3 +1698,356 @@ def plot_map_ca(
     ax.set_ylabel('Latitude', fontsize=14)
     ax.gridlines(draw_labels=True, color='lightgrey', alpha=0.5)
     plt.show()
+
+def print_ascii_image(
+        image1: torch.Tensor,
+        image2: Optional[torch.Tensor] = None,
+        values: str = 'binary',
+        channels: int = 1,
+        channel_weights: List[float] = [0.2989, 0.5870, 0.1140],
+        only_first_channel: bool = False,
+        height: int = 28,
+        width: int = 28,
+        orientation: str = 'vertical',
+        add_space: bool = False,
+        binary_threshold: float = 0.5,
+        merge_channels: bool = False,
+        merge_method: str = 'weighted',
+        mode: str = 'scale',
+        binary_char: str = '█',
+        ascii_chars: str = "@%#*+=-:. "
+) -> None:
+    """
+    Print ASCII representation of one or two PyTorch images.
+
+    This function takes one or two PyTorch tensors representing images and prints
+    their ASCII representation. It supports various options to customize the
+    output, such as the number of channels, orientation, and value representation
+    (binary or continuous). The function can also merge multiple channels into a
+    single grayscale representation using either the mean or a weighted sum of the
+    channels.
+
+    The tensor data should be concatenated into one long vector. For example, for
+    a single-channel image of size 28x28, the tensor should have a size of [784].
+    For a three-channel image of size 32x32, the tensor should have a size of
+    [3072]. Please process the tensors before passing them to this function.
+
+    Use this function when you want to visualize PyTorch images in the console
+    using ASCII characters, perhaps for debugging during your modeling workflow.
+    For example, you can compare two images side by side (a source image from the
+    x dataset, and the corresponding generated image x_hat).
+
+    Parameters
+    ----------
+    image1 : torch.Tensor
+        The first image tensor to be printed as ASCII. It should have 1 dimension.
+    image2 : Optional[torch.Tensor], optional
+        The second image tensor to be printed as ASCII, by default None. It should
+        have 1 dimension.
+    values : str, optional
+        The value representation mode, either 'binary' or 'continuous',
+        by default 'binary'
+    channels : int, optional
+        The number of channels in the input images, by default 1. Channels will be
+        extracted from the input tensor based on this value, they should not be
+        a separate dimension.
+    channel_weights : List[float], optional
+        The weights for each channel when merging channels using the 'weighted'
+        method, by default [0.2989, 0.5870, 0.1140] (RGB to grayscale conversion
+        weights)
+    only_first_channel : bool, optional
+        Whether to print only the first channel, by default False
+    height : int, optional
+        The height of the ASCII representation, by default 32
+    width : int, optional
+        The width of the ASCII representation, by default 32
+    orientation : str, optional
+        The orientation of the printed ASCII, either 'vertical' or 'horizontal',
+        by default 'vertical'
+    add_space : bool, optional
+        Whether to add spaces between ASCII characters, by default False
+    binary_threshold : float, optional
+        The threshold for binarizing pixel values, by default 0.5
+    merge_channels : bool, optional
+        Whether to merge multiple channels into a single grayscale representation,
+        by default False
+    merge_method : str, optional
+        The method for merging channels, either 'mean' or 'weighted', by default
+        'weighted'
+    mode : str, optional
+        The preprocessing mode for pixel values, either 'binary', 'scale', 'clamp',
+        or 'pass', by default 'scale'
+    binary_char : str, optional
+        The character to use for representing binary values above the threshold,
+        by default '█'
+    ascii_chars : str, optional
+        The ASCII characters to use for the image, by default "@%#*+=-:. ". The
+        characters should be ordered from dark to light, with the last character
+        representing the lightest value.
+
+    Returns
+    -------
+    None
+        The function does not return anything, but prints the ASCII representation
+        of the input images.
+
+    Examples
+    --------
+    Prepare example image tensors:
+
+    >>> if sys.version_info >= (3, 10):
+    ...     with as_file(files('datawaza.data') / 'mnist_28x28_ch1_x0.pt') as path:
+    ...         image1 = torch.load(path)
+    ...     with as_file(files('datawaza.data') / 'svhn_32x32_ch3_x0.pt') as path:
+    ...         image2 = torch.load(path)
+    ...     with as_file(files('datawaza.data') / 'svhn_32x32_ch3_xhat0.pt') as path:
+    ...         image3 = torch.load(path)
+    ... else:
+    ...     image1 = torch.load(files('datawaza.data') / 'mnist_28x28_ch1_x0.pt')
+    ...     image2 = torch.load(files('datawaza.data') / 'svhn_32x32_ch3_x0.pt')
+    ...     image3 = torch.load(files('datawaza.data') / 'svhn_32x32_ch3_xhat0.pt')
+
+    Example 1: Print a single binary image with a space between characters:
+
+    >>> print_ascii_image(image1, add_space=True)  #doctest: +NORMALIZE_WHITESPACE
+    <BLANKLINE>
+    <BLANKLINE>
+    <BLANKLINE>
+    <BLANKLINE>
+                                            █
+                          █ █             █ █
+                          █ █             █ █ █
+                          █ █               █
+                        █ █ █             █
+                      █ █ █             █ █
+                        █               █ █
+                        █               █
+                        █ █           █ █ █
+                        █ █           █ █
+                    █ █ █ █ █         █ █
+                    █ █ █ █ █ █ █   █ █
+                      █ █ █ █ █ █ █ █ █     █ █
+                      █ █ █ █ █ █ █ █ █ █ █ █ █
+                          █ █   █ █         █
+                                █ █
+                                █ █
+                              █ █
+                              █ █ █
+                            █ █ █
+    <BLANKLINE>
+    <BLANKLINE>
+    <BLANKLINE>
+    <BLANKLINE>
+    <BLANKLINE>
+
+    Example 2: Print a single continuous image with 3 channels:
+
+    >>> print_ascii_image(image2, values='continuous', channels=3, width=32,
+    ...                   height=32, orientation='horizontal')
+    ++++*#%@@%#*++======+*#%%@@@@%%%   ===++*#%@%#+========+*#%%@@%%%%%   ----=+*###*+=-------==**#%######
+    ---=+*%@@#*=----::-==+*%%@@@@@%%   :-:-=*#%%#+=-:::::--=+*%%@@@@%%%   ::::-=*##*+-::....::-=+*#%%#####
+    ::-=+*%@%#+=-----::--=+#%@@@@@%%   :::-+*#%%*+-:::-::::-=+#%@@@@%%%   ...:-=*##+=::.::....:-=*##%#####
+    :--=*#%%%*=----==-:::-+*%@@@%%%%   ::-=*##%#+=:::-==-:::-+*%@@@%%%#   ..:-=+*#*+-:.::--:...:=+*####***
+    :-=+#%%%%+=::-=++=:::-=*%%@%%%##   :--+#%%%#+-:::=++=:::-=*%%@%%%##   .::=+**#*=:..:-==-...:-+*###****
+    :-=*%@@%#=-::-+**=:::-=*%%@%%###   :-=*#%%%*=:.:-=**=:.:-=*%@@%%###   .:-+*##*+-:..:=++=...:-+*###****
+    --+#%@@%*=:::-+##+::::=*%@@%####   :-+#%@@%*-:.:-+**+::::=*%@@%####   ::=+###*+:...-=**=:...-=*##*****
+    :-+#@@@%#=:::=+##+::::=*%%%%####   :-+#%@@%*-:::-+##+::::=*%%%%####   .:=*#%##+:...-+**=:...-=*##**+*+
+    :-+#@@@%*=:::=*##+:.:-=*%%%%####   :-+#%@%#*-:.:-+##+:::-=*%%%%####   .:=*#%#*+:..:-+##=...:-+*##**+*+
+    :-+#%@@%#=-:-=+##=:::-+*%%%%%###   :-+#%@%#*=:::-+##=:::-+#%%%%%###   .:=*###*+-:.:-=**-...:=+*##*****
+    :-*#%@%%#+=--=+#*=:::-+#%@%%%%%#   :-+#%@%#*=-::-+#*=::--+#%@@%%%##   :-=*###*+=:::-=*+-..::=+###*****
+    :-*#%@%%#+=-:-=*+=::-=+#%@%%%%%%   :-*#%%%#*+-::-=++=::-=*#%@@%%%%%   :-+*###*+=-:.:-==-..::=*###*#***
+    :=*#@@@@%*=-::-=--:--=*#%%%%%%%%   :=*#%@%%#+=-::-=-----=*#%@%%%%%%   :-+*#%##*+-:..:-::..:-=**##*#***
+    :-+#%@@@%*=-::-------=*#%%%%%%%%   :-+#%%%%#+=-.:-------=*#%%%%%%%%   .:+*#####+-: .::::::::=+****#**#
+    -=++*%%%#+--:-===+=---=*%%%%%%%%   -=++*#%%*=-:::=+++=---+*%%%%%%%#   :-==+*##*=::.:-----:.:-+********
+    --==+*##*-:::=+***=-:-=*#%%%%%%%   --==+*#*+-:::=+***=-:-=*#%%%%%##   :---=+**=:...-=++=-:..:=********
+    :--==***+-::-+*##*=-::=*#%%%%%%%   :---=+*+=:.:-+*##*=-::=*#%%%%%##   ::---+++=:..:=+**+-:..:=+*******
+    :---=+*+=::-=*#%#*=-:-=*#%%%%%%%   ::--=+++-:.:-+#%#*=-:-=*#%%%%%##   .:::-=+=-:.:-+***+-:..:=+*******
+    :::-=++=-::-=*#%#*=-:-=*#%%%%%%%   :::--=+=-:::=*###*=-:-=*#%%%%%%#   ...:-==-::.:-+***=-:..-=********
+    :::-=++=-::-=*#%#*=-:-=*#%%%%%%%   .::-=++=-:.:=*###+--:-=*#%%%%%%%   ...:-==-:..:-+*#*=::.:-=********
+    :::-=++=-:::=*%%#+-::-=*#%%%%%%%   .::-=++-::.:=*###+-::-=*#%%%%%%%   ...:-==-:..:-+*#*=:..:-+********
+    :::-=+=-::::=*##*=-:-=+*#%%%%%%%   ..:-=+=-::::=*##*=:::-+*#%%%%%%%   ...:-=-:...:-+**+-:..:=+********
+    ::-=++=-:::-=###*=---=+#%%%%%%%%   :::=++=-::::=*##+-::-=+#%%%%%%%%   ..:-==-:...:-***+-:.:-=+*#*****#
+    --=+**+-:::-=*##*=:--=*#%@%%%%%%   :-=+**+-:.:-=***+-::-=*#%%%%%%%%   .:-=++=:...:=+**=-..:-+*###**#*#
+    -=++*#+-:::-=+**+----=*%%@@%%%%%   -==+*#+-:::-=+*+=-::-=*#%@@%%%%#   :-==++=:...:-=++-::::-+*######**
+    ==+*##*=::::-=+=----=+*%%@@%%%%%   -=+*##*=:.::-===-:--=+*%%@%%%%%#   -==+**+-:...:-=-::::-=+*######*#
+    -=+*##*=-:::-==-:-===*#%@@%%%%%%   -=+*##*=:...:-=-::-==+#%%%%%%%%%   :-=+**+-:...:--:.::--=*#########
+    --=+##*+-::::-=---=++*#%@@%%%%%%   --=*##*=-::.:-----==+*#%%%%%%%##   :-=+**+=:....:-:::--=+*####*####
+    :--+*##+=--::-====++*##%%%%%%%%#   :-=+*#*+=-:::----=++*##%%%%##%##   .:-=+*+=-::..:--:-==++*####**##*
+    ::-+*%##+==--==++***##%%%%%%%%%%   ::-+*##*+-----=+++**##%%%%%#%%##   .:-=+**+=::::--===+++*#####*####
+    --=*#%%%#+++++*#####%%%@@%%%%@%%   --=*#%%#*+++++**#####%%%%%%#%%%%   ::-+*##*+=====++*****######*#%##
+    +++*#%%%##****#######%%%%%%#%%%#   +++*#%%%#*****########%%%%######   ===+*###*+++++********####**####
+    <BLANKLINE>
+
+    Example 3: Print a single continuous image but merge the channels into one:
+
+    >>> print_ascii_image(image2, values='continuous', channels=3, width=32,
+    ...                   height=32, merge_channels=True, add_space=True)
+    + + + + * # % @ @ % # * + + = = = = = = + * # % % @ @ @ @ % % %
+    - - - = + * % @ @ # * = - - - - : : - = = + * % % @ @ @ @ @ % %
+    : : - = + * % @ % # + = - - - - - : : - - = + # % @ @ @ @ @ % %
+    : - - = * # % % % * = - - - - = = - : : : - + * % @ @ @ % % % %
+    : - = + # % % % % + = : : - = + + = : : : - = * % % @ % % % # #
+    : - = * % @ @ % # = - : : - + * * = : : : - = * % % @ % % # # #
+    - - + # % @ @ % * = : : : - + # # + : : : : = * % @ @ % # # # #
+    : - + # @ @ @ % # = : : : = + # # + : : : : = * % % % % # # # #
+    : - + # @ @ @ % * = : : : = * # # + : . : - = * % % % % # # # #
+    : - + # % @ @ % # = - : - = + # # = : : : - + * % % % % % # # #
+    : - * # % @ % % # + = - - = + # * = : : : - + # % @ % % % % % #
+    : - * # % @ % % # + = - : - = * + = : : - = + # % @ % % % % % %
+    : = * # @ @ @ @ % * = - : : - = - - : - - = * # % % % % % % % %
+    : - + # % @ @ @ % * = - : : - - - - - - - = * # % % % % % % % %
+    - = + + * % % % # + - - : - = = = + = - - - = * % % % % % % % %
+    - - = = + * # # * - : : : = + * * * = - : - = * # % % % % % % %
+    : - - = = * * * + - : : - + * # # * = - : : = * # % % % % % % %
+    : - - - = + * + = : : - = * # % # * = - : - = * # % % % % % % %
+    : : : - = + + = - : : - = * # % # * = - : - = * # % % % % % % %
+    : : : - = + + = - : : - = * # % # * = - : - = * # % % % % % % %
+    : : : - = + + = - : : : = * % % # + - : : - = * # % % % % % % %
+    : : : - = + = - : : : : = * # # * = - : - = + * # % % % % % % %
+    : : - = + + = - : : : - = # # # * = - - - = + # % % % % % % % %
+    - - = + * * + - : : : - = * # # * = : - - = * # % @ % % % % % %
+    - = + + * # + - : : : - = + * * + - - - - = * % % @ @ % % % % %
+    = = + * # # * = : : : : - = + = - - - - = + * % % @ @ % % % % %
+    - = + * # # * = - : : : - = = - : - = = = * # % @ @ % % % % % %
+    - - = + # # * + - : : : : - = - - - = + + * # % @ @ % % % % % %
+    : - - + * # # + = - - : : - = = = = + + * # # % % % % % % % % #
+    : : - + * % # # + = = - - = = + + * * * # # % % % % % % % % % %
+    - - = * # % % % # + + + + + * # # # # # % % % @ @ % % % % @ % %
+    + + + * # % % % # # * * * * # # # # # # # % % % % % % # % % % #
+    <BLANKLINE>
+
+    Example 4: Print 2 images side by side with continuous values merged channels:
+
+    >>> print_ascii_image(image2, image3, values='continuous', channels=3,
+    ...                   width=32, height=32, merge_channels=True,
+    ...                   orientation='vertical', add_space=False)
+    ++++*#%@@%#*++======+*#%%@@@@%%%   #%##%##%###%######*###%%###%%%#%
+    ---=+*%@@#*=----::-==+*%%@@@@@%%   ***##%%%%#####******##%%%%%%%%##
+    ::-=+*%@%#+=-----::--=+#%@@@@@%%   ***###%#%%#**+++++++**##%%%%%%%%
+    :--=*#%%%*=----==-:::-+*%@@@%%%%   +****##%#**+=======+++*%%%@@%%%%
+    :-=+#%%%%+=::-=++=:::-=*%%@%%%##   +++*######+=+====-===**#%@%@%%%#
+    :-=*%@@%#=-::-+**=:::-=*%%@%%###   +++*#####*==-===-=--=++%@@@%@%%%
+    --+#%@@%*=:::-+##+::::=*%@@%####   =++*####*+--=-===+=--=*#@@@%%%#%
+    :-+#@@@%#=:::=+##+::::=*%%%%####   ==++*#%#++==-==+++=--=*#%@@@%%%%
+    :-+#@@@%*=:::=*##+:.:-=*%%%%####   ++++**##*+=-==*+*+=--=*#%@@@@%#%
+    :-+#%@@%#=-:-=+##=:::-+*%%%%%###   ++++*#%#*+--=++**+=-=+*#%@@@@%%%
+    :-*#%@%%#+=--=+#*=:::-+#%@%%%%%#   ==+*+###+==-=+****=-==#%%@%@@%%%
+    :-*#%@%%#+=-:-=*+=::-=+#%@%%%%%%   *++**###*====+****====*#@@@@@@%%
+    :=*#@@@@%*=-::-=--:--=*#%%%%%%%%   +=++*##**+===+***+====+#%@@@@%%#
+    :-+#%@@@%*=-::-------=*#%%%%%%%%   ++++*###*+====+=*+=-==+#%@@@@%%#
+    -=++*%%%#+--:-===+=---=*%%%%%%%%   ==+=*###*+=====+++=--=**%@@@@@%%
+    --==+*##*-:::=+***=-:-=*#%%%%%%%   ==++####*++===+++==--=+#%@@@@%%%
+    :--==***+-::-+*##*=-::=*#%%%%%%%   ===+*###*++--=+++==--=+#%@@@@%%%
+    :---=+*+=::-=*#%#*=-:-=*#%%%%%%%   ==++**#**=+=-=++*+=---+*%%@@@@%#
+    :::-=++=-::-=*#%#*=-:-=*#%%%%%%%   =+=+*###*+-=+++*#+==--+*%%@@@%%%
+    :::-=++=-::-=*#%#*=-:-=*#%%%%%%%   +++++*##*+=--=+***+---+#%%@@%%%%
+    :::-=++=-:::=*%%#+-::-=*#%%%%%%%   ++=++*#**+===+*#**+===+#%@@@@%#%
+    :::-=+=-::::=*##*=-:-=+*#%%%%%%%   ++++**##*+=-=++##*+---=*%@@%%%##
+    ::-=++=-:::-=###*=---=+#%%%%%%%%   +++++*#**=--=+*##*==--++%@@@%%%#
+    --=+**+-:::-=*##*=:--=*#%@%%%%%%   +++++*#**=---=**#*+---+*#%@@@%##
+    -=++*#+-:::-=+**+----=*%%@@%%%%%   +==++*#**=---=+***==:=+##@@@%%%#
+    ==+*##*=::::-=+=----=+*%%@@%%%%%   +=++**#**+---=+*++==-=*#%@@@%#%#
+    -=+*##*=-:::-==-:-===*#%@@%%%%%%   =+++*###*+==--=++==-=+*#%%%@@%#*
+    --=+##*+-::::-=---=++*#%@@%%%%%%   ++++#*###++--==+=====**%%@%@%@%#
+    :--+*##+=--::-====++*##%%%%%%%%#   ++**###%#*++==+==+=++#%%@@%@@@##
+    ::-+*%##+==--==++***##%%%%%%%%%%   ***#*#%%##**++++=++**#%%%@@%%%#%
+    --=*#%%%#+++++*#####%%%@@%%%%@%%   *####%%%###**+++**#*##%%%%%%%%%%
+    +++*#%%%##****#######%%%%%%#%%%#   ##*###%%%%%#*##**#####%%%@%%%##%
+    <BLANKLINE>
+    """
+    # Validate input parameters
+    if not isinstance(image1, torch.Tensor):
+        raise ValueError("image1 must be a torch.Tensor")
+    if image2 is not None and not isinstance(image2, torch.Tensor):
+        raise ValueError("image2 must be a torch.Tensor")
+    if values not in ['binary', 'continuous']:
+        raise ValueError("values must be 'binary' or 'continuous'")
+    if orientation not in ['vertical', 'horizontal']:
+        raise ValueError("orientation must be 'vertical' or 'horizontal'")
+    if merge_method not in ['mean', 'weighted']:
+        raise ValueError("merge_method must be 'mean' or 'weighted'")
+    if mode not in ['binary', 'scale', 'clamp', 'pass']:
+        raise ValueError("mode must be 'binary', 'scale', 'clamp', or 'pass'")
+
+    # Helper function to convert a pixel value to an ASCII character
+    def pixel_to_ascii(pixel):
+        index = int(pixel * (len(ascii_chars) - 1))
+        return ascii_chars[index]
+
+    # Helper function to process an input image tensor
+    def process_image(image, channels, merge_channels, mode):
+        # Apply preprocessing mode
+        if mode == 'binary':
+            image = torch.where(image > binary_threshold, torch.ones_like(image), torch.zeros_like(image))
+        elif mode == 'scale':
+            min_val = image.min()
+            max_val = image.max()
+            if max_val > min_val:
+                image = (image - min_val) / (max_val - min_val)
+            else:
+                image = torch.zeros_like(image)
+        elif mode == 'clamp':
+            image = torch.clamp(image, 0, 1)
+
+        # Use only the first channel if specified
+        if only_first_channel:
+            channels = 1
+
+        channel_data = []
+        pixel_per_channel = height * width
+
+        # Merge channels if specified
+        if merge_channels:
+            if channels != len(channel_weights):
+                raise ValueError(f"Number of weights and channels do not match. channels: {channels}, channel_weights: {channel_weights}.")
+            if merge_method == 'mean':
+                image = image.mean(0)
+            elif merge_method == 'weighted':
+                weights = torch.tensor(channel_weights).view(channels, 1)
+                image = (image * weights).sum(0)
+            channels = 1
+
+        # Process each channel
+        for channel in range(channels):
+            channel_rows = []
+            start_index = channel * pixel_per_channel
+            for i in range(height):
+                row_start = start_index + i * width
+                row_end = row_start + width
+                row_pixels = image[row_start:row_end]
+                if values == 'binary' and add_space:
+                    row = ' '.join(' ' if pixel <= binary_threshold else binary_char for pixel in row_pixels)
+                elif values == 'binary':
+                    row = ''.join(' ' if pixel <= binary_threshold else binary_char for pixel in row_pixels)
+                elif values == 'continuous' and add_space:
+                    row = ' '.join(pixel_to_ascii(pixel) for pixel in row_pixels)
+                elif values == 'continuous':
+                    row = ''.join(pixel_to_ascii(pixel) for pixel in row_pixels)
+                channel_rows.append(row)
+            channel_data.append(channel_rows)
+
+        return channel_data
+
+    # Process input images
+    data1 = process_image(image1, channels, merge_channels, mode)
+    data2 = process_image(image2, channels, merge_channels, mode) if image2 is not None else None
+
+    # Print the ASCII representation based on the specified orientation
+    if orientation == 'vertical':
+        for ch in range(len(data1)):
+            if data2:
+                combined_rows = zip(data1[ch], data2[ch])
+                for row1, row2 in combined_rows:
+                    print(f"{row1}   {row2}")
+            else:
+                for row in data1[ch]:
+                    print(row)
+            print()
+    elif orientation == 'horizontal':
+        for row in zip(*data1):
+            print('   '.join(row))
+        print()
+        if data2:
+            for row in zip(*data2):
+                print('   '.join(row))
+            print()

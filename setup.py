@@ -7,7 +7,7 @@ with open('README.md', 'r', encoding='utf-8') as fh:
 setup(
     name = 'datawaza',
     version = '0.1.3',
-    python_requires = '>=3.9, <3.12',  # SciKeras 0.12.0 requires less than 3.12
+    python_requires = '>=3.9, <3.13',
     packages = find_packages(),
     package_data = {
         # Specify files within the datawaza package
@@ -15,12 +15,12 @@ setup(
     },
     include_package_data=True,
     install_requires=[
-        'pandas>=1.2.1',
+        'pandas>=2.2.1',
         'numpy>=1.26.2',
         'matplotlib>=3.8.2',
-        'seaborn>=0.13.0',
-        'pytz>=2024.1',
-        'scikit-learn>=1.4.1.post1',
+        'seaborn>=0.13.2',
+        'pytz>=2023.3',
+        'scikit-learn>=1.5.0',
         'joblib>=1.3.2',
         'setuptools>=69.1.1',
         'typing>=3.7.4.3',
@@ -31,11 +31,12 @@ setup(
         'plotly>=5.19.0',
         'nbformat>=4.2.0',
         'importlib_resources>=6.3.2; python_version<"3.10"',
-        'scikeras>=0.12.0',  # Update to 0.13.0 as soon as available
+        'scikeras>=0.13.0',
         'xgboost>=2.0.3',
-        'imbalanced-learn>=0.12.0',
+        'imbalanced-learn>=0.12.3',
         'tensorflow>=2.16.1',
-        'keras>=3.1.1'
+        'keras>=3.2.0',
+        'torch>=2.1.0',
     ],
     extras_require = {
         'doc': [

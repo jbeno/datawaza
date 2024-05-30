@@ -1993,7 +1993,7 @@ def create_pipeline(
     ...                            cat_columns=cat_columns,
     ...                            num_columns=num_columns)
     >>> pipeline.steps
-    [('ohe', ColumnTransformer(remainder='passthrough',
+    [('ohe', ColumnTransformer(force_int_remainder_cols=False, remainder='passthrough',
                       transformers=[('ohe',
                                      OneHotEncoder(drop='if_binary',
                                                    handle_unknown='ignore'),
@@ -2010,7 +2010,7 @@ def create_pipeline(
     ...                            cat_columns=cat_columns,
     ...                            num_columns=num_columns)
     >>> pipeline.steps
-    [('knn_imputer', KNNImputer()), ('ohe_poly2_log', ColumnTransformer(remainder='passthrough',
+    [('knn_imputer', KNNImputer()), ('ohe_poly2_log', ColumnTransformer(force_int_remainder_cols=False, remainder='passthrough',
                       transformers=[('ohe',
                                      OneHotEncoder(drop='if_binary',
                                                    handle_unknown='ignore'),
@@ -2147,7 +2147,7 @@ def create_pipeline(
             transformer_steps.append((key, transformer, cols))
 
         # Create column transformer
-        col_trans = ColumnTransformer(transformer_steps, remainder='passthrough')
+        col_trans = ColumnTransformer(transformer_steps, remainder='passthrough', force_int_remainder_cols=False)
         transformer_name = '_'.join(transformer_keys) \
             if isinstance(transformer_keys, list) else transformer_keys
         steps.append((transformer_name, col_trans))

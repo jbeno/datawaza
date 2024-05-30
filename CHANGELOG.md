@@ -2,35 +2,37 @@
 
 All notable changes to the Datawaza project will be documented in this file.
 
-## [0.1.3] - 2024-04-08
+## [0.1.3] - 2024-05-29
 
 ### Added
 - New functions added to Model module (model.py):
   - compare_models() - Find the best classification model and hyper-parameters for a dataset.
   - create_nn_binary() - Create a binary classification neural network model.
   - create_nn_multi() - Create a multi-class classification neural network model.
-    - Note: Known issue with KerasClassifier calling OneHotEncoder with the 'sparse' parameter, which was renamed to 'sparse_output' in scikit-learn 1.2. This will cause a TypeError until the issue is resolved. See [SciKeras issue 316](https://github.com/adriangb/scikeras/issues/316). This is solved in SciKeras 0.13.0 once it's released.
   - eval_model() - Produce a detailed evaluation report for a classification model.
   - plot_acf_residuals() - Plot residuals, histogram, ACF, and PACF of a time series ARIMA model.
   - plot_train_history() - Plot the training and validation history of a fitted Keras model.
 - New functions added to Explore module (explore.py):
   - plot_scatt() - Create a scatter plot using Seaborn's scatterplot function.
+  - print_ascii_image() - Print an ASCII image from one or more tensors.
 - New functions added to Tools module (tools.py):
   - DebugPrinter - Conditionally print debugging information during the execution of a script.
   - model_summary() - Create a DataFrame summary of a Keras model's architecture and parameters.
 
 ### Changed
 - Package configuration
-  - setup.py - Support for Python 3.9 - 3.11, modified requirements, separate [doc] and [test] tags.
-    - Because Cartopy does not support Python 3.8, and that's a dependency for `plot_map_ca`, 3.8 is not supported. Because SciKeras does not support Python 3.12, and that's a dependency for `compare_models`, 3.12 is not supported.
-  - Additional dependencies: importlib_resources, scikeras, xgboost, imbalanced-learn, tensorflow, keras. See [requirements.txt](requirements.txt) for the full list
+  - setup.py - Support for Python 3.9 - 3.12, modified requirements, separate [doc] and [test] tags.
+    - Because Cartopy does not support Python 3.8, and that's a dependency for `plot_map_ca`, 3.8 is not supported.
+  - Additional dependencies and updated minimum versions: importlib_resources, scikeras, xgboost, imbalanced-learn, tensorflow, keras, pytorch. See [requirements.txt](requirements.txt) for the full list
 - Explore module (explore.py):
   - plot_map_ca - Detect Python version. To get path to package 'data' directory that stores map files, use importlib.resources for >= 3.10, otherwise importlib_resources
 - Model module (model.py):
   - eval_model() - Changed logic for handling class labels/display names to now use class_map dictionary. Bug fixes.
   - iterate_model() - Added ability to do Random Grid Search.
   - plot_results() - Added ability to switch from line chart to bar chart.
-- Minor bug fixes
+- Issue with KerasClassifier calling OneHotEncoder with the 'sparse' parameter solved in SciKeras 0.13.0
+- Minor bug fixes and changes for compatibility with library updates
+- Updated documentation and User Guide notebook
 
 ## [0.1.2] - 2024-03-19
 
