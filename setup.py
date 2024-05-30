@@ -10,7 +10,7 @@ setup(
     python_requires = '>=3.9, <3.13',
     packages = find_packages(),
     package_data = {
-        # Specify files within the datawaza package
+        # Map files and sample PyTorch image tensors
         'datawaza': ['data/*.xml', 'data/*.dbf', 'data/*.shp', 'data/*.shx', 'data/*.cpg', 'data/*.prj', 'data/*.pt'],
     },
     include_package_data=True,
