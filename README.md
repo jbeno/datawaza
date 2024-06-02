@@ -24,7 +24,7 @@ Datawaza streamlines common Data Science tasks. It's a collection of tools for d
 <p align="center">
   <a href="https://www.datawaza.com/en/latest/model.html#datawaza.model.iterate_model"><img src="https://www.datawaza.com/en/latest/_static/iterate_model_2.png" width="30%" style="margin:0 1%;" /></a>
   <a href="https://www.datawaza.com/en/latest/model.html#datawaza.model.plot_results"><img src="https://www.datawaza.com/en/latest/_static/plot_results.png" width="30%" /></a>
-  <a href="https://www.datawaza.com/en/latest/explore.html#datawaza.explore.plot_3d"><img src="https://www.datawaza.com/en/latest/_static/plot_3d.png" width="30%" /></a>
+  <a href="hhttps://www.datawaza.com/en/latest/explore.html#datawaza.explore.print_ascii_image"><img src="https://www.datawaza.com/en/latest/_static/print_ascii_image.png" width="30%" /></a>
 </p>
 
 Installation
